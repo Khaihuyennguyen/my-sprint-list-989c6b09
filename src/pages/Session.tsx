@@ -93,6 +93,20 @@ export default function Session() {
     setStatus("feedback");
   }, [stopRecording, currentIndex]);
 
+  // Demo mode: skip recording and simulate evaluation
+  const handleDemoSkip = useCallback(async () => {
+    setStatus("processing");
+    const result = await simulateEvaluation();
+    setEntries((prev) =>
+      prev.map((e, i) =>
+        i === currentIndex
+          ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
+          : e
+      )
+    );
+    setStatus("feedback");
+  }, [currentIndex]);
+
   const handleNextQuestion = useCallback(() => {
     if (currentIndex < TOTAL_QUESTIONS - 1) {
       setCurrentIndex((i) => i + 1);
@@ -157,7 +171,25 @@ export default function Session() {
               onStop={handleStopRecording}
               duration={duration}
             />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <div className="text-center space-y-2">
+                <p className="text-sm text-destructive">{error}</p>
+                <button
+                  onClick={handleDemoSkip}
+                  className="text-xs text-primary underline hover:brightness-125"
+                >
+                  Skip with demo answer →
+                </button>
+              </div>
+            )}
+            {status === "idle" && !error && (
+              <button
+                onClick={handleDemoSkip}
+                className="text-xs text-muted-foreground hover:text-primary underline transition-colors"
+              >
+                or skip with demo answer
+              </button>
+            )}
           </div>
 
           {/* Transcript + Feedback */}

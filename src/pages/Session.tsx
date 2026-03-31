@@ -93,6 +93,20 @@ export default function Session() {
     setStatus("feedback");
   }, [stopRecording, currentIndex]);
 
+  // Demo mode: skip recording and simulate evaluation
+  const handleDemoSkip = useCallback(async () => {
+    setStatus("processing");
+    const result = await simulateEvaluation();
+    setEntries((prev) =>
+      prev.map((e, i) =>
+        i === currentIndex
+          ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
+          : e
+      )
+    );
+    setStatus("feedback");
+  }, [currentIndex]);
+
   const handleNextQuestion = useCallback(() => {
     if (currentIndex < TOTAL_QUESTIONS - 1) {
       setCurrentIndex((i) => i + 1);

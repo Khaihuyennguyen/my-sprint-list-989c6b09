@@ -116,7 +116,16 @@ export default function Session() {
     
     // Give the recorder time to finalize the blob
     await new Promise((resolve) => setTimeout(resolve, 600));
-  }, [stopRecording]);
+    
+    // audioBlob should now be set by the recorder
+    if (!audioBlob) {
+      toast.error("No audio recorded. Try the demo skip instead.");
+      setStatus("idle");
+      return;
+    }
+    
+    await handleEvaluateWithBlob(audioBlob);
+  }, [stopRecording, audioBlob, handleEvaluateWithBlob]);
 
   // Demo mode: skip recording and simulate
   const handleDemoSkip = useCallback(async () => {

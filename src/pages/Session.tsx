@@ -17,6 +17,7 @@ import {
   type QuestionEntry,
   type Scores,
 } from "@/types/session";
+import { saveSession } from "@/lib/sessionHistory";
 
 const TOTAL_QUESTIONS = 3;
 

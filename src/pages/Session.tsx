@@ -17,6 +17,7 @@ import {
   type QuestionEntry,
   type Scores,
 } from "@/types/session";
+import { saveSession } from "@/lib/sessionHistory";
 
 const TOTAL_QUESTIONS = 3;
 
@@ -113,6 +114,11 @@ export default function Session() {
       setStatus("idle");
       resetRecording();
     } else {
+      // Save session to history before showing summary
+      setEntries((prev) => {
+        saveSession(track, difficulty, prev);
+        return prev;
+      });
       setStatus("summary");
     }
   }, [currentIndex, resetRecording]);

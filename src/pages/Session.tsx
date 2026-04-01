@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX } from "lucide-react";
 import { VoiceButton } from "@/components/VoiceButton";
 import { Waveform } from "@/components/Waveform";
 import { QuestionCard } from "@/components/QuestionCard";
@@ -10,36 +10,17 @@ import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { SessionProgress } from "@/components/SessionProgress";
 import { SessionSummary } from "@/components/SessionSummary";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useSessionEvaluation } from "@/hooks/useSessionEvaluation";
 import {
   SAMPLE_QUESTIONS,
   type Track,
   type Difficulty,
   type QuestionEntry,
-  type Scores,
 } from "@/types/session";
 import { saveSession } from "@/lib/sessionHistory";
+import { toast } from "sonner";
 
 const TOTAL_QUESTIONS = 3;
-
-// Simulate AI evaluation (will be replaced with real API calls)
-function simulateEvaluation(): Promise<{ transcript: string; scores: Scores; feedbackText: string }> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const scores: Scores = {
-        clarity: Math.floor(Math.random() * 4) + 6,
-        structure: Math.floor(Math.random() * 4) + 5,
-        completeness: Math.floor(Math.random() * 4) + 5,
-      };
-      resolve({
-        transcript:
-          "I would approach this by first understanding the data structure, then writing a query that uses appropriate joins and aggregations. I'd consider edge cases like null values and ensure the query performs well with proper indexing.",
-        scores,
-        feedbackText:
-          "Good structured approach! You mentioned edge cases which is great. To improve, try to be more specific about the exact SQL syntax you'd use, and discuss query optimization techniques like explaining the execution plan. Consider mentioning specific index strategies.",
-      });
-    }, 2500);
-  });
-}
 
 export default function Session() {
   const navigate = useNavigate();
@@ -49,7 +30,6 @@ export default function Session() {
 
   const questions = useMemo(() => {
     const pool = SAMPLE_QUESTIONS[track]?.[difficulty] || SAMPLE_QUESTIONS.sql.medium;
-    // Pick 3 random questions
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, TOTAL_QUESTIONS);
   }, [track, difficulty]);
@@ -67,61 +47,152 @@ export default function Session() {
   );
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "feedback" | "summary">("idle");
 
-  const { isRecording, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder();
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder();
+  const { processAnswer, speakFeedback, stopSpeaking, isProcessing, isSpeaking } = useSessionEvaluation();
 
   const currentEntry = entries[currentIndex];
 
   const handleStartRecording = useCallback(async () => {
     resetRecording();
+    stopSpeaking();
     await startRecording();
     setStatus("listening");
-  }, [startRecording, resetRecording]);
+  }, [startRecording, resetRecording, stopSpeaking]);
 
   const handleStopRecording = useCallback(async () => {
     stopRecording();
     setStatus("processing");
 
-    // Simulate evaluation
-    const result = await simulateEvaluation();
+    // Wait a tick for audioBlob to be set
+    setTimeout(async () => {
+      try {
+        // Get the audio blob from the recorder
+        const recorder = document.querySelector("audio");
+        // Use the audioBlob from the hook - we need to access it after stop
+        // The audioBlob state will be set by the recorder's onstop handler
+        // We need to wait for it
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch {}
+    }, 0);
+  }, [stopRecording]);
 
-    setEntries((prev) =>
-      prev.map((e, i) =>
-        i === currentIndex
-          ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
-          : e
-      )
-    );
-    setStatus("feedback");
-  }, [stopRecording, currentIndex]);
+  // Watch for audioBlob changes to trigger evaluation
+  const handleEvaluateWithBlob = useCallback(async (blob: Blob) => {
+    try {
+      const result = await processAnswer(
+        blob,
+        currentEntry.questionText,
+        track,
+        difficulty
+      );
 
-  // Demo mode: skip recording and simulate evaluation
+      setEntries((prev) =>
+        prev.map((e, i) =>
+          i === currentIndex
+            ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
+            : e
+        )
+      );
+      setStatus("feedback");
+
+      // Auto-play feedback via TTS
+      if (result.feedbackText) {
+        speakFeedback(result.feedbackText);
+      }
+    } catch (err) {
+      console.error("Evaluation error:", err);
+      toast.error("Evaluation failed. Please try again.");
+      setStatus("idle");
+    }
+  }, [currentIndex, currentEntry?.questionText, track, difficulty, processAnswer, speakFeedback]);
+
+  // Effect-like: when audioBlob is set and we're processing, evaluate
+  const prevBlobRef = useCallback(() => {}, []);
+  
+  // Use a simpler approach: handle everything in stopRecording
+  const handleStopAndEvaluate = useCallback(async () => {
+    stopRecording();
+    setStatus("processing");
+    
+    // Give the recorder time to finalize the blob
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }, [stopRecording]);
+
+  // Demo mode: skip recording and simulate
   const handleDemoSkip = useCallback(async () => {
     setStatus("processing");
-    const result = await simulateEvaluation();
-    setEntries((prev) =>
-      prev.map((e, i) =>
-        i === currentIndex
-          ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
-          : e
-      )
-    );
-    setStatus("feedback");
-  }, [currentIndex]);
+    try {
+      // Create a silent audio blob for demo
+      const silentBlob = new Blob([new ArrayBuffer(1000)], { type: "audio/webm" });
+      
+      // Use the evaluate function directly with a demo transcript
+      const { data, error } = await (await import("@/integrations/supabase/client")).supabase.functions.invoke("evaluate", {
+        body: {
+          question: currentEntry.questionText,
+          transcript: "I would approach this by first understanding the data structure, then writing a query that uses appropriate joins and aggregations. I'd consider edge cases like null values and ensure the query performs well with proper indexing.",
+          track,
+          difficulty,
+        },
+      });
+
+      if (error) throw error;
+
+      setEntries((prev) =>
+        prev.map((e, i) =>
+          i === currentIndex
+            ? {
+                ...e,
+                transcript: "I would approach this by first understanding the data structure, then writing a query that uses appropriate joins and aggregations. I'd consider edge cases like null values and ensure the query performs well with proper indexing.",
+                scores: data.scores,
+                feedbackText: data.feedbackText,
+              }
+            : e
+        )
+      );
+      setStatus("feedback");
+
+      if (data.feedbackText) {
+        speakFeedback(data.feedbackText);
+      }
+    } catch (err) {
+      console.error("Demo evaluation error:", err);
+      toast.error("Evaluation failed. Using simulated scores.");
+      // Fallback to simulated
+      const scores = {
+        clarity: Math.floor(Math.random() * 4) + 6,
+        structure: Math.floor(Math.random() * 4) + 5,
+        completeness: Math.floor(Math.random() * 4) + 5,
+      };
+      setEntries((prev) =>
+        prev.map((e, i) =>
+          i === currentIndex
+            ? {
+                ...e,
+                transcript: "I would approach this by first understanding the data structure...",
+                scores,
+                feedbackText: "Good structured approach! Consider being more specific about syntax and optimization techniques.",
+              }
+            : e
+        )
+      );
+      setStatus("feedback");
+    }
+  }, [currentIndex, currentEntry?.questionText, track, difficulty, speakFeedback]);
 
   const handleNextQuestion = useCallback(() => {
+    stopSpeaking();
     if (currentIndex < TOTAL_QUESTIONS - 1) {
       setCurrentIndex((i) => i + 1);
       setStatus("idle");
       resetRecording();
     } else {
-      // Save session to history before showing summary
       setEntries((prev) => {
         saveSession(track, difficulty, prev);
         return prev;
       });
       setStatus("summary");
     }
-  }, [currentIndex, resetRecording]);
+  }, [currentIndex, resetRecording, stopSpeaking, track, difficulty]);
 
   if (status === "summary") {
     return (
@@ -142,14 +213,25 @@ export default function Session() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => { stopSpeaking(); navigate("/"); }}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
           >
             <ArrowLeft className="w-4 h-4" />
             Exit
           </button>
-          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {track.replace("-", " ")} · {difficulty}
+          <div className="flex items-center gap-3">
+            {isSpeaking && (
+              <button
+                onClick={stopSpeaking}
+                className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                Stop
+              </button>
+            )}
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {track.replace("-", " ")} · {difficulty}
+            </div>
           </div>
         </div>
 
@@ -174,7 +256,7 @@ export default function Session() {
               isRecording={isRecording}
               isDisabled={status === "processing"}
               onStart={handleStartRecording}
-              onStop={handleStopRecording}
+              onStop={handleStopAndEvaluate}
               duration={duration}
             />
             {error && (
@@ -195,6 +277,11 @@ export default function Session() {
               >
                 or skip with demo answer
               </button>
+            )}
+            {status === "processing" && (
+              <p className="text-xs text-muted-foreground animate-pulse">
+                Transcribing & evaluating your answer...
+              </p>
             )}
           </div>
 

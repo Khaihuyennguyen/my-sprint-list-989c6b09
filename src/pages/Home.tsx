@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Track, Difficulty } from "@/types/session";
 
 export default function Home() {
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);

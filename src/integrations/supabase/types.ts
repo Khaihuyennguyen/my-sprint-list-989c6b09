@@ -14,7 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      session_questions: {
+        Row: {
+          feedback_text: string | null
+          id: string
+          question_index: number
+          question_text: string
+          scores_clarity: number | null
+          scores_completeness: number | null
+          scores_structure: number | null
+          session_id: string
+          transcript: string | null
+        }
+        Insert: {
+          feedback_text?: string | null
+          id?: string
+          question_index: number
+          question_text: string
+          scores_clarity?: number | null
+          scores_completeness?: number | null
+          scores_structure?: number | null
+          session_id: string
+          transcript?: string | null
+        }
+        Update: {
+          feedback_text?: string | null
+          id?: string
+          question_index?: number
+          question_text?: string
+          scores_clarity?: number | null
+          scores_completeness?: number | null
+          scores_structure?: number | null
+          session_id?: string
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_questions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          avg_clarity: number
+          avg_completeness: number
+          avg_structure: number
+          created_at: string
+          difficulty: string
+          id: string
+          overall_score: number
+          track: string
+          user_id: string
+        }
+        Insert: {
+          avg_clarity?: number
+          avg_completeness?: number
+          avg_structure?: number
+          created_at?: string
+          difficulty: string
+          id?: string
+          overall_score?: number
+          track: string
+          user_id: string
+        }
+        Update: {
+          avg_clarity?: number
+          avg_completeness?: number
+          avg_structure?: number
+          created_at?: string
+          difficulty?: string
+          id?: string
+          overall_score?: number
+          track?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

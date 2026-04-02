@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Trash2, TrendingUp, Calendar, Target } from "lucide-react";
+import { ArrowLeft, Trash2, TrendingUp, Calendar, Target, LogOut } from "lucide-react";
 import { getSessionHistory, clearSessionHistory, type SessionRecord } from "@/lib/sessionHistory";
+import { useAuth } from "@/contexts/AuthContext";
 import { TRACKS } from "@/types/session";
 import {
   ChartContainer,
@@ -20,7 +21,16 @@ const chartConfig: ChartConfig = {
 
 export default function History() {
   const navigate = useNavigate();
-  const [sessions, setSessions] = useState<SessionRecord[]>(getSessionHistory);
+  const { signOut } = useAuth();
+  const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getSessionHistory().then((data) => {
+      setSessions(data);
+      setLoading(false);
+    });
+  }, []);
 
   const trendData = useMemo(() => {
     return [...sessions]
@@ -43,10 +53,18 @@ export default function History() {
     return { total: sessions.length, avgOverall, best };
   }, [sessions]);
 
-  const handleClear = () => {
-    clearSessionHistory();
+  const handleClear = async () => {
+    await clearSessionHistory();
     setSessions([]);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground animate-pulse">Loading history...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -62,15 +80,24 @@ export default function History() {
             <ArrowLeft className="w-4 h-4" />
             Home
           </button>
-          {sessions.length > 0 && (
+          <div className="flex items-center gap-3">
+            {sessions.length > 0 && (
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear
+              </button>
+            )}
             <button
-              onClick={handleClear}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              onClick={signOut}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Clear History
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
             </button>
-          )}
+          </div>
         </div>
 
         <motion.h1
@@ -98,7 +125,6 @@ export default function History() {
           </motion.div>
         ) : (
           <div className="space-y-8">
-            {/* Stats row */}
             {stats && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -119,7 +145,6 @@ export default function History() {
               </motion.div>
             )}
 
-            {/* Trend chart */}
             {trendData.length >= 2 && (
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -144,7 +169,6 @@ export default function History() {
               </motion.div>
             )}
 
-            {/* Session list */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
                 Past Sessions

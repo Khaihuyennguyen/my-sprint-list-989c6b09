@@ -28,13 +28,20 @@ export default function Home() {
 
       <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-20">
         {/* History link */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end gap-3 mb-4">
           <button
             onClick={() => navigate("/history")}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <History className="w-4 h-4" />
             History
+          </button>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
           </button>
         </div>
 

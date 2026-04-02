@@ -137,20 +137,17 @@ export default function Session() {
     }
   }, [currentIndex, currentEntry?.questionText, track, difficulty, speakFeedback]);
 
-  const handleNextQuestion = useCallback(() => {
+  const handleNextQuestion = useCallback(async () => {
     stopSpeaking();
     if (currentIndex < TOTAL_QUESTIONS - 1) {
       setCurrentIndex((i) => i + 1);
       setStatus("idle");
       resetRecording();
     } else {
-      setEntries((prev) => {
-        saveSession(track, difficulty, prev);
-        return prev;
-      });
+      await saveSession(track, difficulty, entries);
       setStatus("summary");
     }
-  }, [currentIndex, resetRecording, stopSpeaking, track, difficulty]);
+  }, [currentIndex, resetRecording, stopSpeaking, track, difficulty, entries]);
 
   if (status === "summary") {
     return (

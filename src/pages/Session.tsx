@@ -160,6 +160,17 @@ export default function Session() {
     }
   }, [currentIndex, resetRecording, stopSpeaking, track, difficulty, entries]);
 
+  if (questionsLoading || entries.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading questions...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (status === "summary") {
     return (
       <div className="min-h-screen px-4 py-12">

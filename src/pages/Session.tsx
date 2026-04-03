@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Volume2 } from "lucide-react";
+import { ArrowLeft, Volume2, Loader2 } from "lucide-react";
 import { VoiceButton } from "@/components/VoiceButton";
 import { Waveform } from "@/components/Waveform";
 import { QuestionCard } from "@/components/QuestionCard";
@@ -11,8 +11,8 @@ import { SessionProgress } from "@/components/SessionProgress";
 import { SessionSummary } from "@/components/SessionSummary";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useSessionEvaluation } from "@/hooks/useSessionEvaluation";
+import { useQuestions } from "@/hooks/useQuestions";
 import {
-  SAMPLE_QUESTIONS,
   type Track,
   type Difficulty,
   type QuestionEntry,
@@ -28,25 +28,36 @@ export default function Session() {
   const track = (searchParams.get("track") || "sql") as Track;
   const difficulty = (searchParams.get("difficulty") || "medium") as Difficulty;
 
-  const questions = useMemo(() => {
-    const pool = SAMPLE_QUESTIONS[track]?.[difficulty] || SAMPLE_QUESTIONS.sql.medium;
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, TOTAL_QUESTIONS);
-  }, [track, difficulty]);
+  const { questions, loading: questionsLoading, error: questionsError } = useQuestions(track, difficulty, TOTAL_QUESTIONS);
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [entries, setEntries] = useState<QuestionEntry[]>(
-    questions.map((q, i) => ({
-      questionIndex: i,
-      questionText: q,
-      transcript: null,
-      scores: null,
-      feedbackText: null,
-      audioUrl: null,
-    }))
-  );
+  const [entries, setEntries] = useState<QuestionEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "feedback" | "summary">("idle");
   const waitingForBlob = useRef(false);
+
+  // Initialize entries when questions load
+  useEffect(() => {
+    if (questions.length > 0) {
+      setEntries(
+        questions.map((q, i) => ({
+          questionIndex: i,
+          questionText: q,
+          transcript: null,
+          scores: null,
+          feedbackText: null,
+          audioUrl: null,
+        }))
+      );
+    }
+  }, [questions]);
+
+  // Handle question loading error
+  useEffect(() => {
+    if (questionsError) {
+      toast.error(questionsError);
+      navigate("/");
+    }
+  }, [questionsError, navigate]);
 
   const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder();
   const { processAnswer, speakFeedback, stopSpeaking, isSpeaking } = useSessionEvaluation();
@@ -148,6 +159,17 @@ export default function Session() {
       setStatus("summary");
     }
   }, [currentIndex, resetRecording, stopSpeaking, track, difficulty, entries]);
+
+  if (questionsLoading || entries.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading questions...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (status === "summary") {
     return (

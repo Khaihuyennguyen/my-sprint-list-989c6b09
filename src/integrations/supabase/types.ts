@@ -38,6 +38,33 @@ export type Database = {
         }
         Relationships: []
       }
+      questions: {
+        Row: {
+          created_at: string
+          difficulty: string
+          id: string
+          is_active: boolean
+          question_text: string
+          track: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty: string
+          id?: string
+          is_active?: boolean
+          question_text: string
+          track: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: string
+          id?: string
+          is_active?: boolean
+          question_text?: string
+          track?: string
+        }
+        Relationships: []
+      }
       session_questions: {
         Row: {
           feedback_text: string | null

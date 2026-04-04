@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Session from "./pages/Session";
 import History from "./pages/History";
 import Auth from "./pages/Auth";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

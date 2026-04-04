@@ -275,6 +275,10 @@ export default function Admin() {
               <label className="text-sm font-medium text-foreground">Question Text</label>
               <Textarea rows={3} value={form.question_text} onChange={(e) => setForm((f) => ({ ...f, question_text: e.target.value }))} placeholder="Enter the interview question..." />
             </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Expected Answer (reference)</label>
+              <Textarea rows={3} value={form.expected_answer} onChange={(e) => setForm((f) => ({ ...f, expected_answer: e.target.value }))} placeholder="Key points a good answer should cover..." />
+            </div>
             <div className="flex items-center gap-2">
               <Switch checked={form.is_active} onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))} />
               <label className="text-sm text-muted-foreground">Active</label>

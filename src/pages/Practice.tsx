@@ -130,6 +130,31 @@ export default function Practice() {
     }
   }, [problem, code, language]);
 
+  const handleAnalyze = useCallback(async () => {
+    if (!problem) return;
+    setAnalyzing(true);
+    setAiFeedback(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-code", {
+        body: {
+          code,
+          language,
+          problem_description: problem.description,
+          solution: (problem as any).solution || "",
+          test_results: results,
+        },
+      });
+
+      if (error) throw error;
+      setAiFeedback(data);
+    } catch (e: any) {
+      toast.error(e.message || "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [problem, code, language, results]);
+
   const diffColor = (d: string) => {
     if (d === "easy") return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
     if (d === "medium") return "bg-amber-500/20 text-amber-400 border-amber-500/30";

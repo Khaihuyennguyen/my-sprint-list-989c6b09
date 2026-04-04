@@ -76,7 +76,7 @@ export default function Session() {
 
       (async () => {
         try {
-          const result = await processAnswer(audioBlob, entry.questionText, track, difficulty);
+          const result = await processAnswer(audioBlob, entry.questionText, track, difficulty, entry.expectedAnswer);
           setEntries((prev) =>
             prev.map((e, i) =>
               i === idx

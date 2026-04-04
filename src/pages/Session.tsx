@@ -118,6 +118,7 @@ export default function Session() {
           transcript: "I would approach this by first understanding the data structure, then writing a query that uses appropriate joins and aggregations. I'd consider edge cases like null values and ensure the query performs well with proper indexing.",
           track,
           difficulty,
+          expectedAnswer: currentEntry.expectedAnswer,
         },
       });
 

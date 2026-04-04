@@ -9,6 +9,7 @@ import Session from "./pages/Session";
 import History from "./pages/History";
 import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
+import Practice from "./pages/Practice";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const AppRoutes = () => (
     <Route path="/session" element={<ProtectedRoute><Session /></ProtectedRoute>} />
     <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
     <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+    <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

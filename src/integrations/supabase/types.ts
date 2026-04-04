@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      coding_problems: {
+        Row: {
+          boilerplate_python: string | null
+          boilerplate_sql: string | null
+          created_at: string
+          description: string
+          difficulty: string
+          id: string
+          is_active: boolean
+          test_cases: Json
+          title: string
+          track: string
+        }
+        Insert: {
+          boilerplate_python?: string | null
+          boilerplate_sql?: string | null
+          created_at?: string
+          description: string
+          difficulty: string
+          id?: string
+          is_active?: boolean
+          test_cases?: Json
+          title: string
+          track: string
+        }
+        Update: {
+          boilerplate_python?: string | null
+          boilerplate_sql?: string | null
+          created_at?: string
+          description?: string
+          difficulty?: string
+          id?: string
+          is_active?: boolean
+          test_cases?: Json
+          title?: string
+          track?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

@@ -41,7 +41,8 @@ export default function Session() {
       setEntries(
         questions.map((q, i) => ({
           questionIndex: i,
-          questionText: q,
+          questionText: q.text,
+          expectedAnswer: q.expectedAnswer,
           transcript: null,
           scores: null,
           feedbackText: null,

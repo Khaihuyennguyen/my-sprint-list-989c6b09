@@ -20,14 +20,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background glow */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{ background: "var(--gradient-glow)" }}
       />
 
       <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-20">
-        {/* History link */}
         <div className="flex justify-end gap-3 mb-4">
           <button
             onClick={() => navigate("/practice")}
@@ -42,6 +40,13 @@ export default function Home() {
           >
             <Settings className="w-4 h-4" />
             Questions
+          </button>
+          <button
+            onClick={() => navigate("/admin/problems")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Database className="w-4 h-4" />
+            Problems
           </button>
           <button
             onClick={() => navigate("/history")}

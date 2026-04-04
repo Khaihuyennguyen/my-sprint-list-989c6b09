@@ -23,6 +23,7 @@ export type Database = {
           difficulty: string
           id: string
           is_active: boolean
+          solution: string | null
           test_cases: Json
           title: string
           track: string
@@ -35,6 +36,7 @@ export type Database = {
           difficulty: string
           id?: string
           is_active?: boolean
+          solution?: string | null
           test_cases?: Json
           title: string
           track: string
@@ -47,6 +49,7 @@ export type Database = {
           difficulty?: string
           id?: string
           is_active?: boolean
+          solution?: string | null
           test_cases?: Json
           title?: string
           track?: string
@@ -81,6 +84,7 @@ export type Database = {
         Row: {
           created_at: string
           difficulty: string
+          expected_answer: string | null
           id: string
           is_active: boolean
           question_text: string
@@ -89,6 +93,7 @@ export type Database = {
         Insert: {
           created_at?: string
           difficulty: string
+          expected_answer?: string | null
           id?: string
           is_active?: boolean
           question_text: string
@@ -97,6 +102,7 @@ export type Database = {
         Update: {
           created_at?: string
           difficulty?: string
+          expected_answer?: string | null
           id?: string
           is_active?: boolean
           question_text?: string

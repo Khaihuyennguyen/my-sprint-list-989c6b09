@@ -27,10 +27,11 @@ type FormData = {
   track: Track;
   difficulty: Difficulty;
   question_text: string;
+  expected_answer: string;
   is_active: boolean;
 };
 
-const defaultForm: FormData = { track: "sql", difficulty: "easy", question_text: "", is_active: true };
+const defaultForm: FormData = { track: "sql", difficulty: "easy", question_text: "", expected_answer: "", is_active: true };
 
 export default function Admin() {
   const navigate = useNavigate();

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrackSelector } from "@/components/TrackSelector";
-import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2 } from "lucide-react";
+import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2, Database } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Track, Difficulty } from "@/types/session";
 

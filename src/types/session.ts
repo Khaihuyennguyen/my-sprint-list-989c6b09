@@ -15,6 +15,7 @@ export interface Scores {
 export interface QuestionEntry {
   questionIndex: number;
   questionText: string;
+  expectedAnswer?: string;
   transcript: string | null;
   scores: Scores | null;
   feedbackText: string | null;

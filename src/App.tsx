@@ -33,6 +33,7 @@ const AppRoutes = () => (
     <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
     <Route path="/session" element={<ProtectedRoute><Session /></ProtectedRoute>} />
     <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+    <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

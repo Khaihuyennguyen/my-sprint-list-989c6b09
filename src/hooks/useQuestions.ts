@@ -16,7 +16,7 @@ export function useQuestions(track: Track, difficulty: Difficulty, count: number
 
       const { data, error: fetchError } = await supabase
         .from("questions")
-        .select("question_text")
+        .select("question_text, expected_answer")
         .eq("track", track)
         .eq("difficulty", difficulty)
         .eq("is_active", true);

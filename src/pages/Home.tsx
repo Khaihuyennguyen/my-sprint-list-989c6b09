@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrackSelector } from "@/components/TrackSelector";
-import { Mic, BarChart3, BookOpen, History, LogOut } from "lucide-react";
+import { Mic, BarChart3, BookOpen, History, LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Track, Difficulty } from "@/types/session";
 
@@ -30,11 +30,17 @@ export default function Home() {
         {/* History link */}
         <div className="flex justify-end gap-3 mb-4">
           <button
+            onClick={() => navigate("/admin")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Questions
+          </button>
+          <button
             onClick={() => navigate("/history")}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <History className="w-4 h-4" />
-            History
           </button>
           <button
             onClick={signOut}

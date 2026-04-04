@@ -2,8 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Track, Difficulty } from "@/types/session";
 
+export interface QuestionItem {
+  text: string;
+  expectedAnswer: string;
+}
+
 export function useQuestions(track: Track, difficulty: Difficulty, count: number) {
-  const [questions, setQuestions] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -105,6 +105,7 @@ export default function Admin() {
         track: form.track,
         difficulty: form.difficulty,
         question_text: form.question_text.trim(),
+        expected_answer: form.expected_answer.trim(),
         is_active: form.is_active,
       }).eq("id", editingId);
       if (error) toast.error("Failed to update question");

@@ -103,7 +103,8 @@ export function useSessionEvaluation() {
       audioBlob: Blob,
       question: string,
       track: string,
-      difficulty: string
+      difficulty: string,
+      expectedAnswer?: string
     ): Promise<EvaluationResult> => {
       setIsProcessing(true);
       try {
@@ -112,7 +113,8 @@ export function useSessionEvaluation() {
           question,
           transcript,
           track,
-          difficulty
+          difficulty,
+          expectedAnswer
         );
         return { transcript, scores, feedbackText };
       } finally {

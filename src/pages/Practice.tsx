@@ -80,6 +80,7 @@ export default function Practice() {
     setResults(null);
     setTotalPassed(0);
     setTotalTests(0);
+    setAiFeedback(null);
 
     const savedCode = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${problem.id}_${language}`);
     if (savedCode) {

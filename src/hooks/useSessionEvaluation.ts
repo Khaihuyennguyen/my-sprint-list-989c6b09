@@ -31,10 +31,11 @@ export function useSessionEvaluation() {
       question: string,
       transcript: string,
       track: string,
-      difficulty: string
+      difficulty: string,
+      expectedAnswer?: string
     ): Promise<{ scores: Scores; feedbackText: string }> => {
       const { data, error } = await supabase.functions.invoke("evaluate", {
-        body: { question, transcript, track, difficulty },
+        body: { question, transcript, track, difficulty, expectedAnswer },
       });
 
       if (error) throw new Error(`Evaluation failed: ${error.message}`);

@@ -41,8 +41,6 @@ export default function Home() {
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <History className="w-4 h-4" />
-            History
-          </button>
           </button>
           <button
             onClick={signOut}

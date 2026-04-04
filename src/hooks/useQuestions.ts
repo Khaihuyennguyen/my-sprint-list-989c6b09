@@ -30,7 +30,7 @@ export function useQuestions(track: Track, difficulty: Difficulty, count: number
       }
 
       const shuffled = data
-        .map((q) => q.question_text)
+        .map((q) => ({ text: q.question_text, expectedAnswer: (q as any).expected_answer || "" }))
         .sort(() => Math.random() - 0.5)
         .slice(0, count);
 

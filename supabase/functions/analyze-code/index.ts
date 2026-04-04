@@ -19,37 +19,41 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { question, transcript, track, difficulty, expectedAnswer } = await req.json();
+    const { code, language, problem_description, solution, test_results } = await req.json();
 
-    if (!question || !transcript) {
+    if (!code || !problem_description) {
       return new Response(
-        JSON.stringify({ error: "question and transcript are required" }),
+        JSON.stringify({ error: "code and problem_description are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const expectedAnswerSection = expectedAnswer
-      ? `\n\nReference answer (use to judge completeness and accuracy):\n"${expectedAnswer}"\n\nCompare the candidate's response against this reference. Award higher completeness scores when key points from the reference are covered.`
+    const solutionSection = solution
+      ? `\n\nReference solution:\n\`\`\`${language}\n${solution}\n\`\`\`\n\nCompare the user's approach with the reference solution.`
       : "";
 
-    const systemPrompt = `You are an expert technical interview coach specializing in ${track || "software engineering"} at the ${difficulty || "medium"} level.
+    const testResultSection = test_results
+      ? `\n\nTest results: ${JSON.stringify(test_results)}`
+      : "";
 
-Evaluate the candidate's verbal answer. Return ONLY valid JSON with this exact structure:
+    const systemPrompt = `You are an expert ${language} code reviewer and mentor. Analyze the user's code submission for a coding problem.
+
+Return ONLY valid JSON with this exact structure:
 {
   "scores": {
-    "clarity": <number 1-10>,
-    "structure": <number 1-10>,
-    "completeness": <number 1-10>
+    "correctness": <number 1-10>,
+    "style": <number 1-10>,
+    "efficiency": <number 1-10>
   },
-  "feedbackText": "<2-3 sentences of constructive feedback>"
+  "feedbackText": "<3-5 sentences of constructive feedback covering approach, code quality, and optimization suggestions>"
 }
 
 Scoring guide:
-- clarity: How clearly and concisely the answer is communicated
-- structure: How well-organized and logical the response is
-- completeness: How thoroughly the question is addressed${expectedAnswerSection}
+- correctness: Does the code solve the problem correctly?
+- style: Code readability, naming, idiomatic usage
+- efficiency: Time/space complexity, optimization${solutionSection}
 
-Be encouraging but honest. Mention specific strengths and one concrete improvement.`;
+Be encouraging but specific. Mention what they did well and suggest concrete improvements.`;
 
     const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
@@ -63,7 +67,7 @@ Be encouraging but honest. Mention specific strengths and one concrete improveme
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Question: "${question}"\n\nCandidate's answer: "${transcript}"`,
+            content: `Problem:\n${problem_description}\n\nUser's ${language} code:\n\`\`\`${language}\n${code}\n\`\`\`${testResultSection}`,
           },
         ],
         temperature: 0.3,
@@ -72,7 +76,7 @@ Be encouraging but honest. Mention specific strengths and one concrete improveme
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI evaluation error:", errorText);
+      console.error("AI analyze error:", errorText);
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
@@ -86,7 +90,7 @@ Be encouraging but honest. Mention specific strengths and one concrete improveme
         );
       }
       return new Response(
-        JSON.stringify({ error: "Evaluation failed" }),
+        JSON.stringify({ error: "Analysis failed" }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -98,19 +102,19 @@ Be encouraging but honest. Mention specific strengths and one concrete improveme
     if (!jsonMatch) {
       console.error("Could not parse AI response:", content);
       return new Response(
-        JSON.stringify({ error: "Could not parse evaluation" }),
+        JSON.stringify({ error: "Could not parse analysis" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const evaluation = JSON.parse(jsonMatch[0]);
+    const analysis = JSON.parse(jsonMatch[0]);
 
     return new Response(
-      JSON.stringify(evaluation),
+      JSON.stringify(analysis),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Evaluate error:", error);
+    console.error("Analyze error:", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -10,6 +10,7 @@ import History from "./pages/History";
 import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
 import Practice from "./pages/Practice";
+import AdminProblems from "./pages/AdminProblems";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

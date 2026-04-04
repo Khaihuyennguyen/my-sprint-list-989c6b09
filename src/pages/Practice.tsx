@@ -6,7 +6,7 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Play, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface CodingProblem {
@@ -43,6 +43,8 @@ export default function Practice() {
   const [results, setResults] = useState<TestResult[] | null>(null);
   const [totalPassed, setTotalPassed] = useState(0);
   const [totalTests, setTotalTests] = useState(0);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<{ scores: { correctness: number; style: number; efficiency: number }; feedbackText: string } | null>(null);
 
   const filterTrack = searchParams.get("track") || "python";
 
@@ -78,6 +80,7 @@ export default function Practice() {
     setResults(null);
     setTotalPassed(0);
     setTotalTests(0);
+    setAiFeedback(null);
 
     const savedCode = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${problem.id}_${language}`);
     if (savedCode) {
@@ -126,6 +129,31 @@ export default function Practice() {
       setRunning(false);
     }
   }, [problem, code, language]);
+
+  const handleAnalyze = useCallback(async () => {
+    if (!problem) return;
+    setAnalyzing(true);
+    setAiFeedback(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-code", {
+        body: {
+          code,
+          language,
+          problem_description: problem.description,
+          solution: (problem as any).solution || "",
+          test_results: results,
+        },
+      });
+
+      if (error) throw error;
+      setAiFeedback(data);
+    } catch (e: any) {
+      toast.error(e.message || "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [problem, code, language, results]);
 
   const diffColor = (d: string) => {
     if (d === "easy") return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
@@ -255,17 +283,42 @@ export default function Practice() {
                     <SelectItem value="sql">SQL</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button onClick={handleRun} disabled={running || !code.trim()} className="gap-2">
-                  {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Run Code
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleRun} disabled={running || !code.trim()} className="gap-2">
+                    {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                    Run Code
+                  </Button>
+                  {results && (
+                    <Button variant="outline" onClick={handleAnalyze} disabled={analyzing} className="gap-2">
+                      {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      AI Feedback
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <CodeEditor language={language} value={code} onChange={setCode} />
 
-              {/* Result Panel (desktop) */}
-              <div className="hidden lg:block">
+              {/* Result Panel + AI Feedback (desktop) */}
+              <div className="hidden lg:block space-y-4">
                 <ResultPanel results={results} total={totalTests} passed={totalPassed} loading={running} language={language} />
+                {aiFeedback && (
+                  <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <h3 className="text-sm font-display font-semibold text-foreground">AI Analysis</h3>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {Object.entries(aiFeedback.scores).map(([key, val]) => (
+                        <div key={key} className="text-center p-2 rounded-lg bg-secondary/40">
+                          <div className="text-lg font-bold text-primary">{val}/10</div>
+                          <div className="text-xs text-muted-foreground capitalize">{key}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{aiFeedback.feedbackText}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

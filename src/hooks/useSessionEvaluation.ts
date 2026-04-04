@@ -31,10 +31,11 @@ export function useSessionEvaluation() {
       question: string,
       transcript: string,
       track: string,
-      difficulty: string
+      difficulty: string,
+      expectedAnswer?: string
     ): Promise<{ scores: Scores; feedbackText: string }> => {
       const { data, error } = await supabase.functions.invoke("evaluate", {
-        body: { question, transcript, track, difficulty },
+        body: { question, transcript, track, difficulty, expectedAnswer },
       });
 
       if (error) throw new Error(`Evaluation failed: ${error.message}`);
@@ -102,7 +103,8 @@ export function useSessionEvaluation() {
       audioBlob: Blob,
       question: string,
       track: string,
-      difficulty: string
+      difficulty: string,
+      expectedAnswer?: string
     ): Promise<EvaluationResult> => {
       setIsProcessing(true);
       try {
@@ -111,7 +113,8 @@ export function useSessionEvaluation() {
           question,
           transcript,
           track,
-          difficulty
+          difficulty,
+          expectedAnswer
         );
         return { transcript, scores, feedbackText };
       } finally {

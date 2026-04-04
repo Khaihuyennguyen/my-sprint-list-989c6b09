@@ -2,8 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Track, Difficulty } from "@/types/session";
 
+export interface QuestionItem {
+  text: string;
+  expectedAnswer: string;
+}
+
 export function useQuestions(track: Track, difficulty: Difficulty, count: number) {
-  const [questions, setQuestions] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,7 +21,7 @@ export function useQuestions(track: Track, difficulty: Difficulty, count: number
 
       const { data, error: fetchError } = await supabase
         .from("questions")
-        .select("question_text")
+        .select("question_text, expected_answer")
         .eq("track", track)
         .eq("difficulty", difficulty)
         .eq("is_active", true);
@@ -30,7 +35,7 @@ export function useQuestions(track: Track, difficulty: Difficulty, count: number
       }
 
       const shuffled = data
-        .map((q) => q.question_text)
+        .map((q) => ({ text: q.question_text, expectedAnswer: (q as any).expected_answer || "" }))
         .sort(() => Math.random() - 0.5)
         .slice(0, count);
 

@@ -41,7 +41,8 @@ export default function Session() {
       setEntries(
         questions.map((q, i) => ({
           questionIndex: i,
-          questionText: q,
+          questionText: q.text,
+          expectedAnswer: q.expectedAnswer,
           transcript: null,
           scores: null,
           feedbackText: null,
@@ -75,7 +76,7 @@ export default function Session() {
 
       (async () => {
         try {
-          const result = await processAnswer(audioBlob, entry.questionText, track, difficulty);
+          const result = await processAnswer(audioBlob, entry.questionText, track, difficulty, entry.expectedAnswer);
           setEntries((prev) =>
             prev.map((e, i) =>
               i === idx
@@ -117,6 +118,7 @@ export default function Session() {
           transcript: "I would approach this by first understanding the data structure, then writing a query that uses appropriate joins and aggregations. I'd consider edge cases like null values and ensure the query performs well with proper indexing.",
           track,
           difficulty,
+          expectedAnswer: currentEntry.expectedAnswer,
         },
       });
 

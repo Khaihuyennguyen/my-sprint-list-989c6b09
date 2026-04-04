@@ -43,6 +43,8 @@ export default function Practice() {
   const [results, setResults] = useState<TestResult[] | null>(null);
   const [totalPassed, setTotalPassed] = useState(0);
   const [totalTests, setTotalTests] = useState(0);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<{ scores: { correctness: number; style: number; efficiency: number }; feedbackText: string } | null>(null);
 
   const filterTrack = searchParams.get("track") || "python";
 

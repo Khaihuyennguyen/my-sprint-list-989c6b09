@@ -89,7 +89,7 @@ export default function Admin() {
 
   const openEdit = (q: Question) => {
     setEditingId(q.id);
-    setForm({ track: q.track as Track, difficulty: q.difficulty as Difficulty, question_text: q.question_text, is_active: q.is_active });
+    setForm({ track: q.track as Track, difficulty: q.difficulty as Difficulty, question_text: q.question_text, expected_answer: (q as any).expected_answer || "", is_active: q.is_active });
     setDialogOpen(true);
   };
 

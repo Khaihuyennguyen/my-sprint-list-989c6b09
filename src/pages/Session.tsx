@@ -133,7 +133,7 @@ export default function Session() {
   const handleStopAndEvaluate = useCallback(() => {
     waitingForBlob.current = true;
     stopRecording();
-    setStatus("processing");
+    setStatus("processing"); // will switch to confirm dialog
   }, [stopRecording]);
 
   const handleDemoSkip = useCallback(async () => {

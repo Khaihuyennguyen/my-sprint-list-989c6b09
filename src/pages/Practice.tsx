@@ -300,7 +300,7 @@ export default function Practice() {
                     Run Code
                   </Button>
                   {results && (
-                    <Button variant="outline" onClick={handleAnalyze} disabled={analyzing} className="gap-2">
+                    <Button variant="outline" onClick={() => setShowAnalyzeConfirm(true)} disabled={analyzing} className="gap-2">
                       {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                       AI Feedback
                     </Button>

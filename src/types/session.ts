@@ -1,4 +1,4 @@
-export type Track = "sql" | "python" | "data-structures";
+export type Track = "sql" | "python" | "data-structures" | "behavioral";
 export type Difficulty = "easy" | "medium" | "hard";
 
 export interface SessionConfig {

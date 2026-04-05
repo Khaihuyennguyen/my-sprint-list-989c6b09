@@ -53,6 +53,7 @@ const defaultForm: FormData = {
 const TRACKS = [
   { id: "python", label: "Python", icon: "🐍" },
   { id: "sql", label: "SQL", icon: "🗄️" },
+  { id: "behavioral", label: "Behavioral", icon: "🎤" },
 ];
 
 const DIFFICULTIES = [

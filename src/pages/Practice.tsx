@@ -8,6 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Play, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CodingProblem {
   id: string;
@@ -45,6 +55,7 @@ export default function Practice() {
   const [totalTests, setTotalTests] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{ scores: { correctness: number; style: number; efficiency: number }; feedbackText: string } | null>(null);
+  const [showAnalyzeConfirm, setShowAnalyzeConfirm] = useState(false);
 
   const filterTrack = searchParams.get("track") || "python";
 
@@ -289,7 +300,7 @@ export default function Practice() {
                     Run Code
                   </Button>
                   {results && (
-                    <Button variant="outline" onClick={handleAnalyze} disabled={analyzing} className="gap-2">
+                    <Button variant="outline" onClick={() => setShowAnalyzeConfirm(true)} disabled={analyzing} className="gap-2">
                       {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                       AI Feedback
                     </Button>
@@ -324,6 +335,23 @@ export default function Practice() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={showAnalyzeConfirm} onOpenChange={setShowAnalyzeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send for AI Analysis?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send your code to the AI for analysis. This uses API credits.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowAnalyzeConfirm(false); handleAnalyze(); }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

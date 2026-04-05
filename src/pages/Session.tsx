@@ -290,6 +290,21 @@ export default function Session() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={showSubmitConfirm} onOpenChange={(open) => { if (!open) handleCancelSubmit(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit recording for evaluation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send your recording for transcription and AI evaluation. This uses API credits.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelSubmit}>Discard</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSubmit}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

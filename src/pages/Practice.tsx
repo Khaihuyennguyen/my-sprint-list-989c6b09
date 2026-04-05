@@ -335,6 +335,23 @@ export default function Practice() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={showAnalyzeConfirm} onOpenChange={setShowAnalyzeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send for AI Analysis?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send your code to the AI for analysis. This uses API credits.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowAnalyzeConfirm(false); handleAnalyze(); }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -34,6 +34,7 @@ export const TRACKS: { id: Track; label: string; description: string; icon: stri
   { id: "sql", label: "SQL", description: "Query writing, joins, window functions, optimization", icon: "🗄️" },
   { id: "python", label: "Python", description: "Algorithms, data structures, OOP, problem solving", icon: "🐍" },
   { id: "data-structures", label: "Data Structures", description: "Arrays, trees, graphs, hash maps, complexity", icon: "🌳" },
+  { id: "behavioral", label: "Behavioral", description: "STAR method, leadership, teamwork, conflict resolution", icon: "🎤" },
 ];
 
 export const DIFFICULTIES: { id: Difficulty; label: string; color: string }[] = [

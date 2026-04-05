@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { CodeEditor } from "@/components/CodeEditor";
 import { ResultPanel } from "@/components/ResultPanel";
+import { VoiceButton } from "@/components/VoiceButton";
+import { Waveform } from "@/components/Waveform";
+import { TranscriptPanel } from "@/components/TranscriptPanel";
+import { ScoreDisplay } from "@/components/ScoreDisplay";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useSessionEvaluation } from "@/hooks/useSessionEvaluation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Play, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Play, ChevronLeft, ChevronRight, Loader2, Sparkles, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -27,6 +33,7 @@ interface CodingProblem {
   difficulty: string;
   boilerplate_python: string;
   boilerplate_sql: string;
+  solution: string | null;
   test_cases: any[];
 }
 
@@ -57,7 +64,19 @@ export default function Practice() {
   const [aiFeedback, setAiFeedback] = useState<{ scores: { correctness: number; style: number; efficiency: number }; feedbackText: string } | null>(null);
   const [showAnalyzeConfirm, setShowAnalyzeConfirm] = useState(false);
 
+  // Voice recording state
+  const { isRecording, audioBlob, duration, startRecording, stopRecording, resetRecording, error: micError } = useAudioRecorder();
+  const { processAnswer, speakFeedback, stopSpeaking, isSpeaking } = useSessionEvaluation();
+  const [voiceProcessing, setVoiceProcessing] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
+  const [voiceScores, setVoiceScores] = useState<{ clarity: number; structure: number; completeness: number } | null>(null);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  const [showVoiceConfirm, setShowVoiceConfirm] = useState(false);
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+  const waitingForBlob = useRef(false);
+
   const filterTrack = searchParams.get("track") || "python";
+  const isBehavioral = filterTrack === "behavioral";
 
   // Fetch problems
   useEffect(() => {
@@ -92,28 +111,43 @@ export default function Practice() {
     setTotalPassed(0);
     setTotalTests(0);
     setAiFeedback(null);
+    setVoiceTranscript(null);
+    setVoiceScores(null);
+    setVoiceFeedback(null);
+    resetRecording();
 
-    const savedCode = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${problem.id}_${language}`);
-    if (savedCode) {
-      setCode(savedCode);
-    } else {
-      setCode(language === "python" ? problem.boilerplate_python : problem.boilerplate_sql);
+    if (!isBehavioral) {
+      const savedCode = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${problem.id}_${language}`);
+      if (savedCode) {
+        setCode(savedCode);
+      } else {
+        setCode(language === "python" ? problem.boilerplate_python : problem.boilerplate_sql);
+      }
     }
-  }, [problem?.id, language]);
+  }, [problem?.id, language, isBehavioral]);
 
   // Auto-save code
   useEffect(() => {
-    if (!problem) return;
+    if (!problem || isBehavioral) return;
     const timer = setTimeout(() => {
       localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${problem.id}_${language}`, code);
     }, 500);
     return () => clearTimeout(timer);
-  }, [code, problem?.id, language]);
+  }, [code, problem?.id, language, isBehavioral]);
 
   // Set language based on track
   useEffect(() => {
     setLanguage(filterTrack === "sql" ? "sql" : "python");
   }, [filterTrack]);
+
+  // When audioBlob becomes available, show confirmation
+  useEffect(() => {
+    if (audioBlob && waitingForBlob.current) {
+      waitingForBlob.current = false;
+      setPendingBlob(audioBlob);
+      setShowVoiceConfirm(true);
+    }
+  }, [audioBlob]);
 
   const handleRun = useCallback(async () => {
     if (!problem) return;
@@ -152,7 +186,7 @@ export default function Practice() {
           code,
           language,
           problem_description: problem.description,
-          solution: (problem as any).solution || "",
+          solution: problem.solution || "",
           test_results: results,
         },
       });
@@ -165,6 +199,54 @@ export default function Practice() {
       setAnalyzing(false);
     }
   }, [problem, code, language, results]);
+
+  // Voice recording handlers
+  const handleStartRecording = useCallback(async () => {
+    resetRecording();
+    stopSpeaking();
+    setVoiceTranscript(null);
+    setVoiceScores(null);
+    setVoiceFeedback(null);
+    await startRecording();
+  }, [startRecording, resetRecording, stopSpeaking]);
+
+  const handleStopRecording = useCallback(() => {
+    waitingForBlob.current = true;
+    stopRecording();
+  }, [stopRecording]);
+
+  const handleConfirmVoice = useCallback(async () => {
+    setShowVoiceConfirm(false);
+    const blob = pendingBlob;
+    setPendingBlob(null);
+    if (!blob || !problem) return;
+
+    setVoiceProcessing(true);
+    try {
+      const result = await processAnswer(
+        blob,
+        problem.description,
+        filterTrack,
+        problem.difficulty,
+        problem.solution || undefined
+      );
+      setVoiceTranscript(result.transcript);
+      setVoiceScores(result.scores);
+      setVoiceFeedback(result.feedbackText);
+      if (result.feedbackText) speakFeedback(result.feedbackText);
+    } catch (err) {
+      console.error("Voice evaluation error:", err);
+      toast.error("Voice evaluation failed. Try again.");
+    } finally {
+      setVoiceProcessing(false);
+    }
+  }, [pendingBlob, problem, filterTrack, processAnswer, speakFeedback]);
+
+  const handleCancelVoice = useCallback(() => {
+    setShowVoiceConfirm(false);
+    setPendingBlob(null);
+    resetRecording();
+  }, [resetRecording]);
 
   const diffColor = (d: string) => {
     if (d === "easy") return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
@@ -191,16 +273,25 @@ export default function Practice() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="text-xl font-display font-bold text-foreground">Code Practice</h1>
+            <h1 className="text-xl font-display font-bold text-foreground">
+              {isBehavioral ? "Behavioral Practice" : "Code Practice"}
+            </h1>
           </div>
           <div className="flex items-center gap-3">
+            {isSpeaking && (
+              <button onClick={stopSpeaking} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
+                <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                Stop
+              </button>
+            )}
             <Select value={filterTrack} onValueChange={(v) => setSearchParams({ track: v })}>
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="python">🐍 Python</SelectItem>
                 <SelectItem value="sql">🗄️ SQL</SelectItem>
+                <SelectItem value="behavioral">🎤 Behavioral</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -210,30 +301,74 @@ export default function Practice() {
           <div className="text-center py-20 text-muted-foreground">
             No problems found for this track.
           </div>
+        ) : isBehavioral ? (
+          /* Behavioral layout: problem + voice only */
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* Problem navigation */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" disabled={currentIndex === 0} onClick={() => setCurrentIndex((i) => i - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground font-mono">
+                  {currentIndex + 1} / {problems.length}
+                </span>
+                <Button variant="ghost" size="icon" disabled={currentIndex === problems.length - 1} onClick={() => setCurrentIndex((i) => i + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+              {problem && (
+                <Badge variant="outline" className={diffColor(problem.difficulty)}>
+                  {problem.difficulty}
+                </Badge>
+              )}
+            </div>
+
+            {/* Problem card */}
+            {problem && (
+              <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-6 space-y-4">
+                <h2 className="text-lg font-display font-semibold text-foreground">{problem.title}</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{problem.description}</p>
+              </div>
+            )}
+
+            {/* Voice recording */}
+            <div className="flex flex-col items-center gap-6 py-4">
+              <Waveform isActive={isRecording} />
+              <VoiceButton
+                isRecording={isRecording}
+                isDisabled={voiceProcessing}
+                onStart={handleStartRecording}
+                onStop={handleStopRecording}
+                duration={duration}
+              />
+              {micError && <p className="text-sm text-destructive">{micError}</p>}
+              {voiceProcessing && <p className="text-xs text-muted-foreground animate-pulse">Transcribing & evaluating...</p>}
+            </div>
+
+            {/* Voice results */}
+            <TranscriptPanel transcript={voiceTranscript} feedbackText={voiceFeedback} isProcessing={voiceProcessing} />
+            {voiceScores && (
+              <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-6">
+                <ScoreDisplay scores={voiceScores} />
+              </div>
+            )}
+          </div>
         ) : (
+          /* Coding layout */
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Left: Problem description */}
             <div className="space-y-4">
               {/* Problem navigation */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={currentIndex === 0}
-                    onClick={() => setCurrentIndex((i) => i - 1)}
-                  >
+                  <Button variant="ghost" size="icon" disabled={currentIndex === 0} onClick={() => setCurrentIndex((i) => i - 1)}>
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
                   <span className="text-sm text-muted-foreground font-mono">
                     {currentIndex + 1} / {problems.length}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={currentIndex === problems.length - 1}
-                    onClick={() => setCurrentIndex((i) => i + 1)}
-                  >
+                  <Button variant="ghost" size="icon" disabled={currentIndex === problems.length - 1} onClick={() => setCurrentIndex((i) => i + 1)}>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
@@ -275,7 +410,27 @@ export default function Practice() {
                 </div>
               )}
 
-              {/* Result Panel (mobile: below problem, desktop: below problem) */}
+              {/* Voice recording section */}
+              <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-5 space-y-4">
+                <h3 className="text-sm font-display font-semibold text-foreground">🎤 Explain Your Approach</h3>
+                <p className="text-xs text-muted-foreground">Record yourself explaining your solution verbally for AI evaluation.</p>
+                <div className="flex flex-col items-center gap-4 py-2">
+                  <Waveform isActive={isRecording} />
+                  <VoiceButton
+                    isRecording={isRecording}
+                    isDisabled={voiceProcessing}
+                    onStart={handleStartRecording}
+                    onStop={handleStopRecording}
+                    duration={duration}
+                  />
+                  {micError && <p className="text-sm text-destructive">{micError}</p>}
+                  {voiceProcessing && <p className="text-xs text-muted-foreground animate-pulse">Transcribing & evaluating...</p>}
+                </div>
+                <TranscriptPanel transcript={voiceTranscript} feedbackText={voiceFeedback} isProcessing={voiceProcessing} />
+                {voiceScores && <ScoreDisplay scores={voiceScores} />}
+              </div>
+
+              {/* Result Panel (mobile) */}
               <div className="lg:hidden">
                 <ResultPanel results={results} total={totalTests} passed={totalPassed} loading={running} language={language} />
               </div>
@@ -336,6 +491,7 @@ export default function Practice() {
         )}
       </div>
 
+      {/* Code AI Analysis Confirm */}
       <AlertDialog open={showAnalyzeConfirm} onOpenChange={setShowAnalyzeConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -349,6 +505,22 @@ export default function Practice() {
             <AlertDialogAction onClick={() => { setShowAnalyzeConfirm(false); handleAnalyze(); }}>
               Confirm
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Voice Recording Confirm */}
+      <AlertDialog open={showVoiceConfirm} onOpenChange={(open) => { if (!open) handleCancelVoice(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit recording for evaluation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send your recording for transcription and AI evaluation. This uses API credits.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelVoice}>Discard</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmVoice}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

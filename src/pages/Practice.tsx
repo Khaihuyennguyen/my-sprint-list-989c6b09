@@ -55,6 +55,7 @@ export default function Practice() {
   const [totalTests, setTotalTests] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{ scores: { correctness: number; style: number; efficiency: number }; feedbackText: string } | null>(null);
+  const [showAnalyzeConfirm, setShowAnalyzeConfirm] = useState(false);
 
   const filterTrack = searchParams.get("track") || "python";
 

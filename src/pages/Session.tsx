@@ -43,6 +43,8 @@ export default function Session() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [entries, setEntries] = useState<QuestionEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "feedback" | "summary">("idle");
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const waitingForBlob = useRef(false);
 
   // Initialize entries when questions load

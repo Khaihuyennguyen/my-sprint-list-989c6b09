@@ -79,33 +79,49 @@ export default function Session() {
   const currentIndexRef = useRef(currentIndex);
   currentIndexRef.current = currentIndex;
 
-  // When audioBlob becomes available after recording, trigger evaluation
+  // When audioBlob becomes available after recording, show confirmation
   useEffect(() => {
     if (audioBlob && waitingForBlob.current) {
       waitingForBlob.current = false;
-      const idx = currentIndexRef.current;
-      const entry = entries[idx];
-
-      (async () => {
-        try {
-          const result = await processAnswer(audioBlob, entry.questionText, track, difficulty, entry.expectedAnswer);
-          setEntries((prev) =>
-            prev.map((e, i) =>
-              i === idx
-                ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
-                : e
-            )
-          );
-          setStatus("feedback");
-          if (result.feedbackText) speakFeedback(result.feedbackText);
-        } catch (err) {
-          console.error("Evaluation error:", err);
-          toast.error("Evaluation failed. Try again or use demo skip.");
-          setStatus("idle");
-        }
-      })();
+      setPendingBlob(audioBlob);
+      setShowSubmitConfirm(true);
     }
   }, [audioBlob]);
+
+  const handleConfirmSubmit = useCallback(async () => {
+    setShowSubmitConfirm(false);
+    const blob = pendingBlob;
+    setPendingBlob(null);
+    if (!blob) return;
+
+    setStatus("processing");
+    const idx = currentIndexRef.current;
+    const entry = entries[idx];
+
+    try {
+      const result = await processAnswer(blob, entry.questionText, track, difficulty, entry.expectedAnswer);
+      setEntries((prev) =>
+        prev.map((e, i) =>
+          i === idx
+            ? { ...e, transcript: result.transcript, scores: result.scores, feedbackText: result.feedbackText }
+            : e
+        )
+      );
+      setStatus("feedback");
+      if (result.feedbackText) speakFeedback(result.feedbackText);
+    } catch (err) {
+      console.error("Evaluation error:", err);
+      toast.error("Evaluation failed. Try again or use demo skip.");
+      setStatus("idle");
+    }
+  }, [pendingBlob, entries, processAnswer, track, difficulty, speakFeedback]);
+
+  const handleCancelSubmit = useCallback(() => {
+    setShowSubmitConfirm(false);
+    setPendingBlob(null);
+    setStatus("idle");
+    resetRecording();
+  }, [resetRecording]);
 
   const handleStartRecording = useCallback(async () => {
     resetRecording();

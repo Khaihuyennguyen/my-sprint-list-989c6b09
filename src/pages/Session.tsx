@@ -19,6 +19,16 @@ import {
 } from "@/types/session";
 import { saveSession } from "@/lib/sessionHistory";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const TOTAL_QUESTIONS = 3;
 

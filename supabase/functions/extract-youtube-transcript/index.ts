@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Extract video ID
     const videoId = extractVideoId(youtubeUrl);
     if (!videoId) {
       return new Response(JSON.stringify({ error: "Invalid YouTube URL" }), {
@@ -26,15 +25,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch video info page to get title
-    const videoTitle = await fetchVideoTitle(videoId);
-
-    // Fetch auto-generated captions
-    const transcript = await fetchCaptions(videoId);
-
-    if (!transcript || transcript.length === 0) {
+    // Use YouTube's InnerTube API to get video info and captions
+    const playerResponse = await fetchPlayerResponse(videoId);
+    
+    const videoTitle = playerResponse?.videoDetails?.title || "Untitled Video";
+    
+    // Get caption tracks
+    const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!captionTracks || captionTracks.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No captions found for this video. Try a video with English subtitles." }),
+        JSON.stringify({ error: "No captions found for this video. Try a video with English subtitles/CC enabled." }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Prefer English captions
+    const enTrack = captionTracks.find((t: any) => 
+      t.languageCode === "en" || t.languageCode?.startsWith("en")
+    ) || captionTracks[0];
+
+    console.log(`Using caption track: ${enTrack.name?.simpleText || enTrack.languageCode}`);
+
+    const transcript = await fetchCaptionText(enTrack.baseUrl);
+
+    if (!transcript || transcript.length < 10) {
+      return new Response(
+        JSON.stringify({ error: "Captions were empty. Try a different video." }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -66,55 +82,41 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-async function fetchVideoTitle(videoId: string): Promise<string> {
-  try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-    const html = await res.text();
-    const titleMatch = html.match(/<title>(.*?)<\/title>/);
-    if (titleMatch) {
-      return titleMatch[1].replace(" - YouTube", "").trim();
-    }
-  } catch (e) {
-    console.error("Could not fetch title:", e);
-  }
-  return "Untitled Video";
-}
+async function fetchPlayerResponse(videoId: string): Promise<any> {
+  // Use YouTube's InnerTube API (public, no key needed)
+  const response = await fetch("https://www.youtube.com/youtubei/v1/player", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    },
+    body: JSON.stringify({
+      videoId,
+      context: {
+        client: {
+          clientName: "WEB",
+          clientVersion: "2.20240101.00.00",
+          hl: "en",
+        },
+      },
+    }),
+  });
 
-async function fetchCaptions(videoId: string): Promise<string> {
-  // Get the video page to find caption tracks
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-  const pageHtml = await pageRes.text();
-
-  // Extract captions player response
-  const captionMatch = pageHtml.match(/"captions":\s*(\{.*?"playerCaptionsTracklistRenderer".*?\})\s*,\s*"videoDetails"/s);
-  if (!captionMatch) {
-    // Try alternative pattern
-    const altMatch = pageHtml.match(/"captionTracks":\s*(\[.*?\])/s);
-    if (!altMatch) {
-      throw new Error("No captions available for this video");
-    }
-    const tracks = JSON.parse(altMatch[1]);
-    if (tracks.length === 0) throw new Error("No caption tracks found");
-
-    // Prefer English
-    const enTrack = tracks.find((t: any) => t.languageCode === "en" || t.languageCode?.startsWith("en")) || tracks[0];
-    return await fetchCaptionText(enTrack.baseUrl);
+  if (!response.ok) {
+    throw new Error(`YouTube API returned ${response.status}`);
   }
 
-  // Parse caption data
-  const captionData = JSON.parse(captionMatch[1]);
-  const tracks = captionData?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!tracks || tracks.length === 0) {
-    throw new Error("No caption tracks found");
-  }
-
-  // Prefer English
-  const enTrack = tracks.find((t: any) => t.languageCode === "en" || t.languageCode?.startsWith("en")) || tracks[0];
-  return await fetchCaptionText(enTrack.baseUrl);
+  return await response.json();
 }
 
 async function fetchCaptionText(baseUrl: string): Promise<string> {
-  const res = await fetch(baseUrl);
+  // Ensure we get XML format
+  const url = baseUrl.includes("fmt=") ? baseUrl : `${baseUrl}&fmt=srv3`;
+  
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch captions: ${res.status}`);
+  }
   const xml = await res.text();
 
   // Parse XML captions into plain text

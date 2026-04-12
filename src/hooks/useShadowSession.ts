@@ -24,22 +24,19 @@ export function useShadowSession() {
   const [results, setResults] = useState<SegmentResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const extractTranscript = useCallback(async (youtubeUrl: string) => {
-    setStatus("extracting");
+  const processTranscript = useCallback(async (data: { videoTitle: string; transcript: string }) => {
+    setStatus("splitting");
+    setVideoTitle(data.videoTitle);
+    setTranscript(data.transcript);
     try {
-      const { data, error } = await supabase.functions.invoke("extract-youtube-transcript", {
-        body: { youtubeUrl },
-      });
-      if (error) throw new Error(error.message);
-      if (data.error) throw new Error(data.error);
+      // Clean timestamps from pasted transcript (e.g. "0:01", "12:34")
+      const cleanedTranscript = data.transcript
+        .replace(/^\d{1,2}:\d{2}(:\d{2})?\s*/gm, "")
+        .replace(/\n+/g, " ")
+        .trim();
 
-      setVideoTitle(data.videoTitle);
-      setTranscript(data.transcript);
-      setStatus("splitting");
-
-      // Now split dialogue
       const { data: splitData, error: splitError } = await supabase.functions.invoke("split-dialogue", {
-        body: { transcript: data.transcript, videoTitle: data.videoTitle },
+        body: { transcript: cleanedTranscript, videoTitle: data.videoTitle },
       });
       if (splitError) throw new Error(splitError.message);
       if (splitData.error) throw new Error(splitData.error);
@@ -48,8 +45,8 @@ export function useShadowSession() {
       setDialogue(splitData.dialogue);
       setStatus("role-select");
     } catch (err) {
-      console.error("Extract error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to extract transcript");
+      console.error("Split error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to split dialogue");
       setStatus("idle");
     }
   }, []);
@@ -179,7 +176,7 @@ export function useShadowSession() {
     currentSegmentIndex,
     results,
     isProcessing,
-    extractTranscript,
+    processTranscript,
     selectRole,
     evaluateSegment,
     nextSegment,

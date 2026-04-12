@@ -18,7 +18,7 @@ export default function Shadow() {
     currentSegmentIndex,
     results,
     isProcessing,
-    extractTranscript,
+    processTranscript,
     selectRole,
     evaluateSegment,
     nextSegment,
@@ -70,11 +70,11 @@ export default function Shadow() {
         )}
 
         {/* States */}
-        {(status === "idle" || status === "extracting" || status === "splitting") && (
+        {(status === "idle" || status === "splitting") && (
           <div>
             <YouTubeLinkInput
-              onSubmit={extractTranscript}
-              isLoading={status === "extracting" || status === "splitting"}
+              onSubmit={processTranscript}
+              isLoading={status === "splitting"}
             />
             {status === "splitting" && (
               <p className="text-xs text-center text-muted-foreground mt-4 animate-pulse">
@@ -83,6 +83,8 @@ export default function Shadow() {
             )}
           </div>
         )}
+
+
 
         {status === "role-select" && (
           <RoleSelector roles={roles} videoTitle={videoTitle} onSelect={selectRole} />

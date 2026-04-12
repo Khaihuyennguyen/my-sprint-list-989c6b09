@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Extract video ID
     const videoId = extractVideoId(youtubeUrl);
     if (!videoId) {
       return new Response(JSON.stringify({ error: "Invalid YouTube URL" }), {
@@ -26,27 +25,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch video info page to get title
-    const videoTitle = await fetchVideoTitle(videoId);
-
-    // Fetch auto-generated captions
-    const transcript = await fetchCaptions(videoId);
-
-    if (!transcript || transcript.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No captions found for this video. Try a video with English subtitles." }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Get title via oEmbed (this always works)
+    let videoTitle = "Untitled Video";
+    try {
+      const oembedRes = await fetch(
+        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
       );
-    }
+      if (oembedRes.ok) {
+        const oembedData = await oembedRes.json();
+        videoTitle = oembedData.title || videoTitle;
+      }
+    } catch (_) {}
 
+    // YouTube blocks server-side caption extraction.
+    // Return video metadata and let the client know to provide the transcript.
     return new Response(
-      JSON.stringify({ videoId, videoTitle, transcript }),
+      JSON.stringify({
+        videoId,
+        videoTitle,
+        needsManualTranscript: true,
+        message: "YouTube blocks server-side caption access. Please paste the transcript from the video.",
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("Extract transcript error:", err);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Failed to extract transcript" }),
+      JSON.stringify({ error: err instanceof Error ? err.message : "Failed to process YouTube URL" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -64,74 +69,4 @@ function extractVideoId(url: string): string | null {
     if (m) return m[1];
   }
   return null;
-}
-
-async function fetchVideoTitle(videoId: string): Promise<string> {
-  try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-    const html = await res.text();
-    const titleMatch = html.match(/<title>(.*?)<\/title>/);
-    if (titleMatch) {
-      return titleMatch[1].replace(" - YouTube", "").trim();
-    }
-  } catch (e) {
-    console.error("Could not fetch title:", e);
-  }
-  return "Untitled Video";
-}
-
-async function fetchCaptions(videoId: string): Promise<string> {
-  // Get the video page to find caption tracks
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
-  const pageHtml = await pageRes.text();
-
-  // Extract captions player response
-  const captionMatch = pageHtml.match(/"captions":\s*(\{.*?"playerCaptionsTracklistRenderer".*?\})\s*,\s*"videoDetails"/s);
-  if (!captionMatch) {
-    // Try alternative pattern
-    const altMatch = pageHtml.match(/"captionTracks":\s*(\[.*?\])/s);
-    if (!altMatch) {
-      throw new Error("No captions available for this video");
-    }
-    const tracks = JSON.parse(altMatch[1]);
-    if (tracks.length === 0) throw new Error("No caption tracks found");
-
-    // Prefer English
-    const enTrack = tracks.find((t: any) => t.languageCode === "en" || t.languageCode?.startsWith("en")) || tracks[0];
-    return await fetchCaptionText(enTrack.baseUrl);
-  }
-
-  // Parse caption data
-  const captionData = JSON.parse(captionMatch[1]);
-  const tracks = captionData?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!tracks || tracks.length === 0) {
-    throw new Error("No caption tracks found");
-  }
-
-  // Prefer English
-  const enTrack = tracks.find((t: any) => t.languageCode === "en" || t.languageCode?.startsWith("en")) || tracks[0];
-  return await fetchCaptionText(enTrack.baseUrl);
-}
-
-async function fetchCaptionText(baseUrl: string): Promise<string> {
-  const res = await fetch(baseUrl);
-  const xml = await res.text();
-
-  // Parse XML captions into plain text
-  const textParts: string[] = [];
-  const regex = /<text[^>]*>(.*?)<\/text>/gs;
-  let match;
-  while ((match = regex.exec(xml)) !== null) {
-    let text = match[1]
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\n/g, " ")
-      .trim();
-    if (text) textParts.push(text);
-  }
-
-  return textParts.join(" ");
 }

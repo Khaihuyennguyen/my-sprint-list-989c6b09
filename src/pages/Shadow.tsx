@@ -83,12 +83,8 @@ export default function Shadow() {
             )}
           </div>
         )}
-              <p className="text-xs text-center text-muted-foreground mt-4 animate-pulse">
-                Splitting dialogue into roles...
-              </p>
-            )}
-          </div>
-        )}
+
+
 
         {status === "role-select" && (
           <RoleSelector roles={roles} videoTitle={videoTitle} onSelect={selectRole} />

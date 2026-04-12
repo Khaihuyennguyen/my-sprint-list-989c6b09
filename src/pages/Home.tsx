@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrackSelector } from "@/components/TrackSelector";
-import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2, Database } from "lucide-react";
+import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2, Database, Languages } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Track, Difficulty } from "@/types/session";
 
@@ -27,6 +27,13 @@ export default function Home() {
 
       <div className="relative z-10 max-w-3xl mx-auto px-4 py-12 sm:py-20">
         <div className="flex justify-end gap-3 mb-4">
+          <button
+            onClick={() => navigate("/shadow")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Languages className="w-4 h-4" />
+            Shadow
+          </button>
           <button
             onClick={() => navigate("/practice")}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

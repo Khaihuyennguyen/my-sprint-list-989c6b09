@@ -190,6 +190,101 @@ export type Database = {
         }
         Relationships: []
       }
+      shadow_results: {
+        Row: {
+          created_at: string
+          expected_text: string
+          feedback_text: string | null
+          id: string
+          overall_score: number | null
+          scores_accent_clarity: number | null
+          scores_confidence: number | null
+          scores_connected_speech: number | null
+          scores_fluency: number | null
+          scores_intonation: number | null
+          scores_pronunciation: number | null
+          segment_index: number
+          session_id: string
+          user_transcript: string | null
+        }
+        Insert: {
+          created_at?: string
+          expected_text: string
+          feedback_text?: string | null
+          id?: string
+          overall_score?: number | null
+          scores_accent_clarity?: number | null
+          scores_confidence?: number | null
+          scores_connected_speech?: number | null
+          scores_fluency?: number | null
+          scores_intonation?: number | null
+          scores_pronunciation?: number | null
+          segment_index: number
+          session_id: string
+          user_transcript?: string | null
+        }
+        Update: {
+          created_at?: string
+          expected_text?: string
+          feedback_text?: string | null
+          id?: string
+          overall_score?: number | null
+          scores_accent_clarity?: number | null
+          scores_confidence?: number | null
+          scores_connected_speech?: number | null
+          scores_fluency?: number | null
+          scores_intonation?: number | null
+          scores_pronunciation?: number | null
+          segment_index?: number
+          session_id?: string
+          user_transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shadow_results_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shadow_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          roles: Json
+          selected_role: string | null
+          status: string
+          transcript: string
+          user_id: string
+          video_title: string
+          youtube_url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          roles?: Json
+          selected_role?: string | null
+          status?: string
+          transcript?: string
+          user_id: string
+          video_title?: string
+          youtube_url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          roles?: Json
+          selected_role?: string | null
+          status?: string
+          transcript?: string
+          user_id?: string
+          video_title?: string
+          youtube_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -75,9 +75,9 @@ Deno.serve(async (req) => {
     }
 
     const items = await apifyRes.json();
-    console.log("Apify returned items:", items?.length);
+    console.log("Apify returned items:", JSON.stringify(items?.[0]).slice(0, 200));
 
-    if (!items || items.length === 0 || !items[0].text) {
+    if (!items || items.length === 0) {
       return new Response(
         JSON.stringify({
           videoId,
@@ -89,7 +89,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    const transcript = items[0].text;
+    // canadesk~youtube-transcript returns { videoUrl, transcript: [{text, start, duration}] } per video
+    // or it may return flat text. Handle both.
+    let transcript = "";
+    const item = items[0];
+    if (typeof item.text === "string") {
+      transcript = item.text;
+    } else if (item.transcript && Array.isArray(item.transcript)) {
+      transcript = item.transcript.map((t: { text: string }) => t.text).join(" ");
+    } else if (typeof item === "string") {
+      transcript = item;
+    }
+
+    if (!transcript.trim()) {
+      return new Response(
+        JSON.stringify({
+          videoId,
+          videoTitle,
+          needsManualTranscript: true,
+          message: "Empty transcript. Please paste it manually.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({

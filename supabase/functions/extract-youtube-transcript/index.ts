@@ -45,10 +45,10 @@ Deno.serve(async (req) => {
       }
     } catch (_) {}
 
-    // Call Apify YouTube Transcript actor (synchronous run)
+    // Call Apify YouTube Transcript Scraper (synchronous run)
     console.log("Calling Apify for video:", videoId);
     const apifyRes = await fetch(
-      `https://api.apify.com/v2/acts/canadesk~youtube-transcript/run-sync-get-dataset-items?token=${apiKey}`,
+      `https://api.apify.com/v2/acts/pintostudio~youtube-transcript-scraper/run-sync-get-dataset-items?token=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

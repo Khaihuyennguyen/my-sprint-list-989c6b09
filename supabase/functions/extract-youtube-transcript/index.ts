@@ -48,13 +48,14 @@ Deno.serve(async (req) => {
     // Call Apify YouTube Transcript Scraper (synchronous run)
     console.log("Calling Apify for video:", videoId);
     const apifyRes = await fetch(
-      `https://api.apify.com/v2/acts/topaz~youtube-transcript-scraper/run-sync-get-dataset-items?token=${apiKey}`,
+      `https://api.apify.com/v2/acts/scrapier~youtube-transcript-scraper/run-sync-get-dataset-items?token=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           urls: [`https://www.youtube.com/watch?v=${videoId}`],
-          outputFormat: "singleStringText",
+          outputFormat: "text",
+          includeEnglishAG: true,
         }),
       }
     );

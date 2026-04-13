@@ -160,10 +160,10 @@ export function YouTubeLinkInput({ onSubmit, isLoading }: Props) {
           {validating ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Validating...
+              Extracting transcript...
             </>
           ) : (
-            "Next →"
+            "Extract & Start →"
           )}
         </button>
       </form>

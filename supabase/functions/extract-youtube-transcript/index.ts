@@ -25,7 +25,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get title via oEmbed (this always works)
+    const apiKey = Deno.env.get("APIFY_API_KEY");
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Apify API key not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get title via oEmbed
     let videoTitle = "Untitled Video";
     try {
       const oembedRes = await fetch(
@@ -37,14 +45,59 @@ Deno.serve(async (req) => {
       }
     } catch (_) {}
 
-    // YouTube blocks server-side caption extraction.
-    // Return video metadata and let the client know to provide the transcript.
+    // Call Apify YouTube Transcript Scraper (synchronous run)
+    console.log("Calling Apify for video:", videoId);
+    const apifyRes = await fetch(
+      `https://api.apify.com/v2/acts/topaz~youtube-transcript-scraper/run-sync-get-dataset-items?token=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          urls: [`https://www.youtube.com/watch?v=${videoId}`],
+          outputFormat: "singleStringText",
+        }),
+      }
+    );
+
+    if (!apifyRes.ok) {
+      const errText = await apifyRes.text();
+      console.error("Apify error:", apifyRes.status, errText);
+
+      // Fallback to manual paste
+      return new Response(
+        JSON.stringify({
+          videoId,
+          videoTitle,
+          needsManualTranscript: true,
+          message: "Could not auto-extract transcript. Please paste it manually.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const items = await apifyRes.json();
+    console.log("Apify returned items:", items?.length);
+
+    if (!items || items.length === 0 || !items[0].text) {
+      return new Response(
+        JSON.stringify({
+          videoId,
+          videoTitle,
+          needsManualTranscript: true,
+          message: "No transcript found for this video. Please paste it manually.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const transcript = items[0].text;
+
     return new Response(
       JSON.stringify({
         videoId,
         videoTitle,
-        needsManualTranscript: true,
-        message: "YouTube blocks server-side caption access. Please paste the transcript from the video.",
+        transcript,
+        needsManualTranscript: false,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

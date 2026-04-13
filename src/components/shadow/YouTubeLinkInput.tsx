@@ -32,15 +32,12 @@ export function YouTubeLinkInput({ onSubmit, isLoading }: Props) {
       setVideoId(data.videoId || "");
 
       if (data.transcript && !data.needsManualTranscript) {
-        // Auto-extracted transcript available
         onSubmit({ videoTitle: data.videoTitle, transcript: data.transcript });
       } else {
-        // Need manual transcript paste
         setStep("paste");
       }
     } catch (err) {
       console.error(err);
-      // Still allow manual paste
       setVideoTitle("YouTube Video");
       setStep("paste");
     } finally {
@@ -163,10 +160,10 @@ export function YouTubeLinkInput({ onSubmit, isLoading }: Props) {
           {validating ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Validating...
+              Extracting transcript...
             </>
           ) : (
-            "Next →"
+            "Extract & Start →"
           )}
         </button>
       </form>

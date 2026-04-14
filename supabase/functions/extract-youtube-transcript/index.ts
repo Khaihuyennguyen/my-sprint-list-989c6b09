@@ -89,10 +89,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The actor returns { searchResult: [{text, start, dur}] } per item
+    // The actor returns { data: [{text, start, dur}] }
     let transcript = "";
     const item = items[0];
-    if (item.searchResult && Array.isArray(item.searchResult)) {
+    if (item.data && Array.isArray(item.data)) {
+      transcript = item.data.map((t: { text: string }) => t.text).join(" ");
+    } else if (item.searchResult && Array.isArray(item.searchResult)) {
       transcript = item.searchResult.map((t: { text: string }) => t.text).join(" ");
     } else if (typeof item.text === "string") {
       transcript = item.text;

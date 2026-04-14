@@ -48,7 +48,7 @@ Return a JSON object with this exact structure:
 
 Return ONLY the JSON, no other text.`;
 
-    const response = await fetch("https://ai.lovable.dev/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          urls: [`https://www.youtube.com/watch?v=${videoId}`],
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
         }),
       }
     );

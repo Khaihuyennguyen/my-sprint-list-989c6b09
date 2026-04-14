@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          urls: [`https://www.youtube.com/watch?v=${videoId}`],
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
         }),
       }
     );
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     }
 
     const items = await apifyRes.json();
-    console.log("Apify returned items:", JSON.stringify(items?.[0]).slice(0, 200));
+    console.log("Apify returned items count:", items?.length, "keys:", items?.[0] ? Object.keys(items[0]) : "none", "full first item:", JSON.stringify(items?.[0]).slice(0, 500));
 
     if (!items || items.length === 0) {
       return new Response(
@@ -89,11 +89,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // canadesk~youtube-transcript returns { videoUrl, transcript: [{text, start, duration}] } per video
-    // or it may return flat text. Handle both.
+    // The actor returns { data: [{text, start, dur}] }
     let transcript = "";
     const item = items[0];
-    if (typeof item.text === "string") {
+    if (item.data && Array.isArray(item.data)) {
+      transcript = item.data.map((t: { text: string }) => t.text).join(" ");
+    } else if (item.searchResult && Array.isArray(item.searchResult)) {
+      transcript = item.searchResult.map((t: { text: string }) => t.text).join(" ");
+    } else if (typeof item.text === "string") {
       transcript = item.text;
     } else if (item.transcript && Array.isArray(item.transcript)) {
       transcript = item.transcript.map((t: { text: string }) => t.text).join(" ");

@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     }
 
     const items = await apifyRes.json();
-    console.log("Apify returned items:", JSON.stringify(items?.[0]).slice(0, 200));
+    console.log("Apify returned items count:", items?.length, "keys:", items?.[0] ? Object.keys(items[0]) : "none", "full first item:", JSON.stringify(items?.[0]).slice(0, 500));
 
     if (!items || items.length === 0) {
       return new Response(

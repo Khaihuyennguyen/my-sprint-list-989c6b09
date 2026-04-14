@@ -244,19 +244,34 @@ export function ShadowPlayer({
             </div>
           )}
 
-          <motion.button
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={onNext}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2"
-            style={{ boxShadow: "var(--shadow-glow)" }}
-          >
-            {currentIndex < totalSegments - 1 ? (
-              <>Next Line <ArrowRight className="w-4 h-4" /></>
-            ) : (
-              "View Summary"
-            )}
-          </motion.button>
+          <div className="flex gap-3">
+            <motion.button
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => {
+                stopSpeaking();
+                resetRecording();
+                setPhase("listen");
+              }}
+              className="flex-1 py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all flex items-center justify-center gap-2"
+            >
+              <Mic className="w-4 h-4" />
+              Try Again
+            </motion.button>
+            <motion.button
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={onNext}
+              className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2"
+              style={{ boxShadow: "var(--shadow-glow)" }}
+            >
+              {currentIndex < totalSegments - 1 ? (
+                <>Next Line <ArrowRight className="w-4 h-4" /></>
+              ) : (
+                "View Summary"
+              )}
+            </motion.button>
+          </div>
         </motion.div>
       )}
 

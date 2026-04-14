@@ -18,7 +18,7 @@ export function YouTubeLinkInput({ onSubmit, isLoading }: Props) {
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
+    if (!url.trim() || validating || isLoading) return;
 
     setValidating(true);
     try {

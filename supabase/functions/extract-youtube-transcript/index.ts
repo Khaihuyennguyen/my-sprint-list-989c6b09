@@ -89,11 +89,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // canadesk~youtube-transcript returns { videoUrl, transcript: [{text, start, duration}] } per video
-    // or it may return flat text. Handle both.
+    // The actor returns { searchResult: [{text, start, dur}] } per item
     let transcript = "";
     const item = items[0];
-    if (typeof item.text === "string") {
+    if (item.searchResult && Array.isArray(item.searchResult)) {
+      transcript = item.searchResult.map((t: { text: string }) => t.text).join(" ");
+    } else if (typeof item.text === "string") {
       transcript = item.text;
     } else if (item.transcript && Array.isArray(item.transcript)) {
       transcript = item.transcript.map((t: { text: string }) => t.text).join(" ");

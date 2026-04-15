@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -55,6 +55,14 @@ const SAMPLE_LESSONS = [
 
 export default function TeacherMode() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Accept segments from Shadow mode via navigation state
+  const shadowData = location.state as {
+    segments?: TeacherSegment[];
+    videoTitle?: string;
+    selectedRole?: string;
+  } | null;
   const {
     segments,
     currentSegmentIndex,

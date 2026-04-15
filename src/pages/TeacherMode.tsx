@@ -271,6 +271,11 @@ export default function TeacherMode() {
 
             {/* Segment info */}
             <div className="text-center">
+              {shadowData?.videoTitle && (
+                <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                  {shadowData.videoTitle} — as {shadowData.selectedRole}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 Sentence {currentSegmentIndex + 1} of {segments.length}
                 {currentAttempts.length > 0 && (

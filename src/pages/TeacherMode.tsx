@@ -234,7 +234,7 @@ export default function TeacherMode() {
         )}
 
         {/* === ACTIVE SESSION === */}
-        {status !== "idle" && status !== "complete" && currentSegment && (
+        {status !== "idle" && currentSegment && (
           <div className="space-y-6">
             {/* Progress */}
             <div className="flex items-center gap-2">

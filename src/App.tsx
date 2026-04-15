@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Practice from "./pages/Practice";
 import AdminProblems from "./pages/AdminProblems";
 import Shadow from "./pages/Shadow";
+import TeacherMode from "./pages/TeacherMode";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

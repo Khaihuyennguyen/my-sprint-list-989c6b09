@@ -97,6 +97,25 @@ export default function Shadow() {
                 Playing as <span className="text-primary font-semibold">{selectedRole}</span>
               </p>
               <p className="text-xs text-muted-foreground line-clamp-1">{videoTitle}</p>
+              <button
+                onClick={() =>
+                  navigate("/teacher", {
+                    state: {
+                      segments: userSegments.map((s, i) => ({
+                        expectedText: s.text,
+                        role: s.role,
+                        index: i,
+                      })),
+                      videoTitle,
+                      selectedRole,
+                    },
+                  })
+                }
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                Switch to Teacher Mode (Azure Speech)
+              </button>
             </div>
             <ShadowPlayer
               userSegments={userSegments}

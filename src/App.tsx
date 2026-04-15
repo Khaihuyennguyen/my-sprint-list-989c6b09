@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Practice from "./pages/Practice";
 import AdminProblems from "./pages/AdminProblems";
 import Shadow from "./pages/Shadow";
+import TeacherMode from "./pages/TeacherMode";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const AppRoutes = () => (
     <Route path="/admin/problems" element={<ProtectedRoute><AdminProblems /></ProtectedRoute>} />
     <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
     <Route path="/shadow" element={<ProtectedRoute><Shadow /></ProtectedRoute>} />
+    <Route path="/teacher" element={<ProtectedRoute><TeacherMode /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

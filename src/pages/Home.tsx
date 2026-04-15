@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrackSelector } from "@/components/TrackSelector";
-import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2, Database, Languages } from "lucide-react";
+import { Mic, BarChart3, BookOpen, History, LogOut, Settings, Code2, Database, Languages, GraduationCap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Track, Difficulty } from "@/types/session";
 
@@ -33,6 +33,13 @@ export default function Home() {
           >
             <Languages className="w-4 h-4" />
             Shadow
+          </button>
+          <button
+            onClick={() => navigate("/teacher")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <GraduationCap className="w-4 h-4" />
+            Teacher
           </button>
           <button
             onClick={() => navigate("/practice")}

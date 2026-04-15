@@ -35,6 +35,13 @@ export default function Home() {
             Shadow
           </button>
           <button
+            onClick={() => navigate("/teacher")}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <GraduationCap className="w-4 h-4" />
+            Teacher
+          </button>
+          <button
             onClick={() => navigate("/practice")}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >

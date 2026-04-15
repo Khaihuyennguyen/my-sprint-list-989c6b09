@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -55,6 +55,14 @@ const SAMPLE_LESSONS = [
 
 export default function TeacherMode() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Accept segments from Shadow mode via navigation state
+  const shadowData = location.state as {
+    segments?: TeacherSegment[];
+    videoTitle?: string;
+    selectedRole?: string;
+  } | null;
   const {
     segments,
     currentSegmentIndex,
@@ -77,6 +85,15 @@ export default function TeacherMode() {
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
   const waitingForBlob = useRef(false);
+  const shadowStarted = useRef(false);
+
+  // Auto-start session if coming from Shadow mode
+  useEffect(() => {
+    if (shadowData?.segments && shadowData.segments.length > 0 && !shadowStarted.current) {
+      shadowStarted.current = true;
+      startSession(shadowData.segments);
+    }
+  }, [shadowData, startSession]);
 
   const currentSegment = segments[currentSegmentIndex];
   const latestAttempt = currentAttempts[currentAttempts.length - 1] || null;
@@ -254,6 +271,11 @@ export default function TeacherMode() {
 
             {/* Segment info */}
             <div className="text-center">
+              {shadowData?.videoTitle && (
+                <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                  {shadowData.videoTitle} — as {shadowData.selectedRole}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 Sentence {currentSegmentIndex + 1} of {segments.length}
                 {currentAttempts.length > 0 && (

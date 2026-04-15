@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Volume2, Loader2 } from "lucide-react";
+import { ArrowLeft, Volume2, Loader2, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { YouTubeLinkInput } from "@/components/shadow/YouTubeLinkInput";
 import { RoleSelector } from "@/components/shadow/RoleSelector";

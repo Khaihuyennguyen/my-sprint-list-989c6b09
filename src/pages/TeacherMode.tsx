@@ -85,6 +85,15 @@ export default function TeacherMode() {
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
   const waitingForBlob = useRef(false);
+  const shadowStarted = useRef(false);
+
+  // Auto-start session if coming from Shadow mode
+  useEffect(() => {
+    if (shadowData?.segments && shadowData.segments.length > 0 && !shadowStarted.current) {
+      shadowStarted.current = true;
+      startSession(shadowData.segments);
+    }
+  }, [shadowData, startSession]);
 
   const currentSegment = segments[currentSegmentIndex];
   const latestAttempt = currentAttempts[currentAttempts.length - 1] || null;

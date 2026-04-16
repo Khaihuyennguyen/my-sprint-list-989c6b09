@@ -51,19 +51,8 @@ export default function PracticeDrill() {
     useAudioRecorder();
   const waitingForBlob = useRef(false);
 
-  if (!finalReview) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">No study plan found.</p>
-          <button onClick={() => navigate(-1)} className="text-primary hover:underline">Go back</button>
-        </div>
-      </div>
-    );
-  }
-
-  const wordDrills = finalReview.studyPlan.wordDrills || [];
-  const sentenceDrills = finalReview.studyPlan.sentenceDrills || [];
+  const wordDrills = finalReview?.studyPlan.wordDrills || [];
+  const sentenceDrills = finalReview?.studyPlan.sentenceDrills || [];
   const totalWords = wordDrills.length;
   const totalSentences = sentenceDrills.length;
 

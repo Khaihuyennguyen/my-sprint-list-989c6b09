@@ -201,6 +201,18 @@ export default function PracticeDrill() {
     setAttemptIdx(0);
   }, [totalWords, totalSentences]);
 
+  // === EARLY RETURN: no review data ===
+  if (!finalReview) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">No study plan found.</p>
+          <button onClick={() => navigate(-1)} className="text-primary hover:underline">Go back</button>
+        </div>
+      </div>
+    );
+  }
+
   // === RENDER ===
 
   if (phase === "intro") {

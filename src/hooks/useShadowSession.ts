@@ -1,35 +1,43 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type {
-  ShadowRole,
-  DialogueLine,
-  SegmentResult,
-  PronunciationScores,
-  WordIssue,
-} from "@/types/shadow";
+import type { ShadowRole, DialogueLine } from "@/types/shadow";
 import { toast } from "sonner";
 
-type Status = "idle" | "extracting" | "splitting" | "role-select" | "playing" | "evaluating" | "results";
+type Status = "idle" | "splitting" | "role-select" | "playing" | "evaluating" | "results";
+
+export interface ShadowSegmentResult {
+  line: DialogueLine;
+  audioBlob: Blob;
+  azureScores?: any;
+  recognizedText?: string;
+  problemWords?: any[];
+}
+
+export interface ShadowFinalReview {
+  overallSummary: string;
+  strengths: string[];
+  weaknesses: string[];
+  studyPlan: {
+    wordDrills: Array<{ word: string; phoneticTip: string; exampleSentence: string }>;
+    sentenceDrills: Array<{ sentence: string; focus: string }>;
+    dailyRoutine: string;
+  };
+  topProblemWords?: Array<{ word: string; accuracy: number; occurrences: number }>;
+}
 
 export function useShadowSession() {
   const [status, setStatus] = useState<Status>("idle");
   const [videoTitle, setVideoTitle] = useState("");
-  const [transcript, setTranscript] = useState("");
   const [roles, setRoles] = useState<ShadowRole[]>([]);
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [userSegments, setUserSegments] = useState<DialogueLine[]>([]);
-  const [otherSegments, setOtherSegments] = useState<DialogueLine[]>([]);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
-  const [results, setResults] = useState<SegmentResult[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [segmentResults, setSegmentResults] = useState<ShadowSegmentResult[]>([]);
+  const [finalReview, setFinalReview] = useState<ShadowFinalReview | null>(null);
 
   const processTranscript = useCallback(async (data: { videoTitle: string; transcript: string }) => {
     setStatus("splitting");
     setVideoTitle(data.videoTitle);
-    setTranscript(data.transcript);
     try {
-      // Clean timestamps from pasted transcript (e.g. "0:01", "12:34")
       const cleanedTranscript = data.transcript
         .replace(/^\d{1,2}:\d{2}(:\d{2})?\s*/gm, "")
         .replace(/\n+/g, " ")
@@ -51,120 +59,53 @@ export function useShadowSession() {
     }
   }, []);
 
-  const selectRole = useCallback(
-    (roleName: string) => {
-      setSelectedRole(roleName);
-      const userLines = dialogue.filter((d) => d.role === roleName);
-      const otherLines = dialogue.filter((d) => d.role !== roleName);
-      setUserSegments(userLines);
-      setOtherSegments(otherLines);
-      setResults(
-        userLines.map((l, i) => ({
-          segmentIndex: i,
-          expectedText: l.text,
-          userTranscript: null,
-          scores: null,
-          overallScore: null,
-          feedback: null,
-          wordIssues: [],
-        }))
-      );
-      setCurrentSegmentIndex(0);
-      setStatus("playing");
-    },
-    [dialogue]
-  );
+  const selectRole = useCallback((roleName: string) => {
+    setSelectedRole(roleName);
+    setSegmentResults([]);
+    setFinalReview(null);
+    setStatus("playing");
+  }, []);
 
-  const evaluateSegment = useCallback(
-    async (audioBlob: Blob, segmentIdx: number) => {
-      setIsProcessing(true);
+  const finishSession = useCallback(
+    async (results: ShadowSegmentResult[]) => {
+      setSegmentResults(results);
+      setStatus("evaluating");
+
       try {
-        // Transcribe user audio
-        const formData = new FormData();
-        formData.append("audio", audioBlob, "recording.webm");
-        const { data: txData, error: txError } = await supabase.functions.invoke("transcribe", {
-          body: formData,
+        const conversation = results.map((r) => ({
+          expectedText: r.line.text,
+          recognizedText: r.recognizedText || "",
+          azureScores: r.azureScores,
+          problemWords: r.problemWords || [],
+          attempts: 1,
+        }));
+
+        const { data, error } = await supabase.functions.invoke("teacher-final-eval", {
+          body: { conversation },
         });
-        if (txError) throw new Error(txError.message);
-        const userTranscript = txData.transcript;
+        if (error) throw error;
+        if (data.error) throw new Error(data.error);
 
-        // Evaluate pronunciation
-        const expectedText = userSegments[segmentIdx].text;
-        const { data: evalData, error: evalError } = await supabase.functions.invoke(
-          "evaluate-pronunciation",
-          {
-            body: {
-              expectedText,
-              userTranscript,
-              segmentIndex: segmentIdx,
-              totalSegments: userSegments.length,
-            },
-          }
-        );
-        if (evalError) throw new Error(evalError.message);
-
-        setResults((prev) =>
-          prev.map((r, i) =>
-            i === segmentIdx
-              ? {
-                  ...r,
-                  userTranscript,
-                  scores: evalData.scores,
-                  overallScore: evalData.overallScore,
-                  feedback: evalData.feedback,
-                  wordIssues: evalData.wordIssues || [],
-                }
-              : r
-          )
-        );
-
-        return { userTranscript, scores: evalData.scores, feedback: evalData.feedback };
+        setFinalReview(data as ShadowFinalReview);
       } catch (err) {
-        console.error("Evaluate segment error:", err);
-        toast.error("Evaluation failed. Try again.");
-        return null;
+        console.error("Finalize error:", err);
+        toast.error("Couldn't generate study plan. Showing basic results.");
       } finally {
-        setIsProcessing(false);
+        setStatus("results");
       }
     },
-    [userSegments]
+    []
   );
-
-  const nextSegment = useCallback(() => {
-    if (currentSegmentIndex < userSegments.length - 1) {
-      setCurrentSegmentIndex((i) => i + 1);
-    } else {
-      setStatus("results");
-    }
-  }, [currentSegmentIndex, userSegments.length]);
 
   const reset = useCallback(() => {
     setStatus("idle");
     setVideoTitle("");
-    setTranscript("");
     setRoles([]);
     setDialogue([]);
     setSelectedRole(null);
-    setUserSegments([]);
-    setOtherSegments([]);
-    setCurrentSegmentIndex(0);
-    setResults([]);
+    setSegmentResults([]);
+    setFinalReview(null);
   }, []);
-
-  // Get the dialogue flow for the current segment (what comes before user's turn)
-  const getCurrentContext = useCallback(() => {
-    if (userSegments.length === 0) return [];
-    const userLine = userSegments[currentSegmentIndex];
-    // Find this line in the full dialogue and get the preceding other-role line
-    const dialogueIdx = dialogue.findIndex(
-      (d) => d.index === userLine.index
-    );
-    const context: DialogueLine[] = [];
-    if (dialogueIdx > 0) {
-      context.push(dialogue[dialogueIdx - 1]);
-    }
-    return context;
-  }, [dialogue, userSegments, currentSegmentIndex]);
 
   return {
     status,
@@ -172,15 +113,11 @@ export function useShadowSession() {
     roles,
     dialogue,
     selectedRole,
-    userSegments,
-    currentSegmentIndex,
-    results,
-    isProcessing,
+    segmentResults,
+    finalReview,
     processTranscript,
     selectRole,
-    evaluateSegment,
-    nextSegment,
+    finishSession,
     reset,
-    getCurrentContext,
   };
 }

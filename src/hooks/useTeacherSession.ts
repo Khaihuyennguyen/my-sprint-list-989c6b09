@@ -32,7 +32,28 @@ export interface TeacherResult {
   bestScore: number;
 }
 
-type TeacherStatus = "idle" | "listening" | "recording" | "evaluating" | "feedback" | "complete";
+export interface FinalReview {
+  overallSummary: string;
+  strengths: string[];
+  weaknesses: string[];
+  studyPlan: {
+    wordDrills: Array<{ word: string; phoneticTip: string; exampleSentence: string }>;
+    sentenceDrills: Array<{ sentence: string; focus: string }>;
+    dailyRoutine: string;
+  };
+  topProblemWords: Array<{ word: string; accuracy: number; occurrences: number }>;
+}
+
+type TeacherStatus =
+  | "idle"
+  | "intro"        // teacher reads sentence + countdown
+  | "countdown"    // 3-2-1
+  | "listening"    // ready, awaiting user record
+  | "recording"
+  | "evaluating"
+  | "feedback"
+  | "finalizing"   // generating final review
+  | "complete";
 
 export function useTeacherSession() {
   const [segments, setSegments] = useState<TeacherSegment[]>([]);
@@ -42,15 +63,10 @@ export function useTeacherSession() {
   const [currentAttempts, setCurrentAttempts] = useState<TeacherAttempt[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [finalReview, setFinalReview] = useState<FinalReview | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const startSession = useCallback((segs: TeacherSegment[]) => {
-    setSegments(segs);
-    setCurrentSegmentIndex(0);
-    setResults([]);
-    setCurrentAttempts([]);
-    setStatus("listening");
-  }, []);
+  const countdownTimerRef = useRef<number | null>(null);
 
   const speakText = useCallback(async (text: string): Promise<void> => {
     try {
@@ -106,6 +122,65 @@ export function useTeacherSession() {
     setIsSpeaking(false);
   }, []);
 
+  const clearCountdown = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdown(null);
+  }, []);
+
+  // Runs a 3-2-1 countdown, resolves when finished
+  const runCountdown = useCallback((from = 3): Promise<void> => {
+    return new Promise((resolve) => {
+      let current = from;
+      setCountdown(current);
+      countdownTimerRef.current = window.setInterval(() => {
+        current -= 1;
+        if (current <= 0) {
+          clearInterval(countdownTimerRef.current!);
+          countdownTimerRef.current = null;
+          setCountdown(null);
+          resolve();
+        } else {
+          setCountdown(current);
+        }
+      }, 1000);
+    });
+  }, []);
+
+  // Intro a segment: speak it, then countdown, then call onReady (which starts recording)
+  const introSegment = useCallback(
+    async (idx: number, onReady: () => void) => {
+      const seg = segments[idx];
+      if (!seg) return;
+      setStatus("intro");
+      // Brief teacher prompt + the sentence
+      const intro =
+        idx === 0
+          ? `Hello! Let's practice. Repeat after me: ${seg.expectedText}`
+          : `Now try this one: ${seg.expectedText}`;
+      await speakText(intro);
+      setStatus("countdown");
+      await runCountdown(3);
+      setStatus("listening");
+      onReady();
+    },
+    [segments, speakText, runCountdown]
+  );
+
+  const startSession = useCallback(
+    (segs: TeacherSegment[]) => {
+      setSegments(segs);
+      setCurrentSegmentIndex(0);
+      setResults([]);
+      setCurrentAttempts([]);
+      setFinalReview(null);
+      setStatus("listening");
+    },
+    []
+  );
+
   const evaluateAttempt = useCallback(
     async (audioBlob: Blob): Promise<TeacherAttempt | null> => {
       const segment = segments[currentSegmentIndex];
@@ -115,7 +190,6 @@ export function useTeacherSession() {
       setStatus("evaluating");
 
       try {
-        // Step 1: Send audio to Azure for pronunciation assessment
         const formData = new FormData();
         formData.append("audio", audioBlob, "recording.webm");
         formData.append("referenceText", segment.expectedText);
@@ -128,11 +202,11 @@ export function useTeacherSession() {
         if (azureError) throw new Error(azureError.message);
         if (azureData.error) throw new Error(azureData.error);
 
-        // Step 2: Get teacher feedback using AI + Azure scores
         const attemptNumber = currentAttempts.length + 1;
-        const previousFeedback = currentAttempts.length > 0
-          ? currentAttempts[currentAttempts.length - 1].feedback
-          : null;
+        const previousFeedback =
+          currentAttempts.length > 0
+            ? currentAttempts[currentAttempts.length - 1].feedback
+            : null;
 
         const { data: teacherData, error: teacherError } = await supabase.functions.invoke(
           "teacher-eval",
@@ -166,7 +240,6 @@ export function useTeacherSession() {
         setCurrentAttempts((prev) => [...prev, attempt]);
         setStatus("feedback");
 
-        // Speak the feedback
         await speakText(attempt.feedback);
 
         return attempt;
@@ -184,37 +257,75 @@ export function useTeacherSession() {
 
   const retrySegment = useCallback(() => {
     stopSpeaking();
+    clearCountdown();
     setStatus("listening");
-  }, [stopSpeaking]);
+  }, [stopSpeaking, clearCountdown]);
+
+  const finalizeSession = useCallback(
+    async (allResults: TeacherResult[]) => {
+      setStatus("finalizing");
+      try {
+        const conversation = allResults.map((r) => {
+          const best = r.attempts.reduce(
+            (b, a) => (a.azureScores.pronScore > (b?.azureScores.pronScore ?? -1) ? a : b),
+            r.attempts[0]
+          );
+          return {
+            expectedText: r.segment.expectedText,
+            recognizedText: best?.recognizedText ?? "",
+            azureScores: best?.azureScores,
+            problemWords: best?.problemWords ?? [],
+            attempts: r.attempts.length,
+          };
+        });
+
+        const { data, error } = await supabase.functions.invoke("teacher-final-eval", {
+          body: { conversation },
+        });
+        if (error) throw new Error(error.message);
+        if (data.error) throw new Error(data.error);
+        setFinalReview(data as FinalReview);
+      } catch (err) {
+        console.error("Finalize error:", err);
+        toast.error("Couldn't generate final review. Showing basic summary.");
+      } finally {
+        setStatus("complete");
+      }
+    },
+    []
+  );
 
   const nextSegment = useCallback(() => {
     stopSpeaking();
     const segment = segments[currentSegmentIndex];
 
-    // Save result for current segment
     const bestScore = Math.max(...currentAttempts.map((a) => a.azureScores.pronScore), 0);
-    setResults((prev) => [
-      ...prev,
+    const updatedResults = [
+      ...results,
       { segment, attempts: currentAttempts, bestScore },
-    ]);
+    ];
+    setResults(updatedResults);
 
     if (currentSegmentIndex < segments.length - 1) {
       setCurrentSegmentIndex((i) => i + 1);
       setCurrentAttempts([]);
       setStatus("listening");
     } else {
-      setStatus("complete");
+      // Session complete — run final analysis
+      finalizeSession(updatedResults);
     }
-  }, [segments, currentSegmentIndex, currentAttempts, stopSpeaking]);
+  }, [segments, currentSegmentIndex, currentAttempts, results, stopSpeaking, finalizeSession]);
 
   const reset = useCallback(() => {
     stopSpeaking();
+    clearCountdown();
     setSegments([]);
     setCurrentSegmentIndex(0);
     setResults([]);
     setCurrentAttempts([]);
+    setFinalReview(null);
     setStatus("idle");
-  }, [stopSpeaking]);
+  }, [stopSpeaking, clearCountdown]);
 
   return {
     segments,
@@ -224,12 +335,15 @@ export function useTeacherSession() {
     currentAttempts,
     isProcessing,
     isSpeaking,
+    countdown,
+    finalReview,
     startSession,
     evaluateAttempt,
     retrySegment,
     nextSegment,
     speakText,
     stopSpeaking,
+    introSegment,
     reset,
   };
 }

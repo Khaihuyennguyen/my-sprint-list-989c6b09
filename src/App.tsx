@@ -13,6 +13,7 @@ import Practice from "./pages/Practice";
 import AdminProblems from "./pages/AdminProblems";
 import Shadow from "./pages/Shadow";
 import TeacherMode from "./pages/TeacherMode";
+import PracticeDrill from "./pages/PracticeDrill";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const AppRoutes = () => (
     <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
     <Route path="/shadow" element={<ProtectedRoute><Shadow /></ProtectedRoute>} />
     <Route path="/teacher" element={<ProtectedRoute><TeacherMode /></ProtectedRoute>} />
+    <Route path="/practice-drill" element={<ProtectedRoute><PracticeDrill /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

@@ -124,28 +124,30 @@ export function useTeacherSession() {
 
   const clearCountdown = useCallback(() => {
     if (countdownTimerRef.current) {
+      clearTimeout(countdownTimerRef.current);
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
     setCountdown(null);
   }, []);
 
-  // Runs a 3-2-1 countdown, resolves when finished
+  // Runs a smooth 3-2-1 countdown, resolves when finished
   const runCountdown = useCallback((from = 3): Promise<void> => {
     return new Promise((resolve) => {
       let current = from;
       setCountdown(current);
-      countdownTimerRef.current = window.setInterval(() => {
+      const tick = () => {
         current -= 1;
         if (current <= 0) {
-          clearInterval(countdownTimerRef.current!);
-          countdownTimerRef.current = null;
           setCountdown(null);
+          countdownTimerRef.current = null;
           resolve();
-        } else {
-          setCountdown(current);
+          return;
         }
-      }, 1000);
+        setCountdown(current);
+        countdownTimerRef.current = window.setTimeout(tick, 750);
+      };
+      countdownTimerRef.current = window.setTimeout(tick, 750);
     });
   }, []);
 
@@ -203,45 +205,29 @@ export function useTeacherSession() {
         if (azureData.error) throw new Error(azureData.error);
 
         const attemptNumber = currentAttempts.length + 1;
-        const previousFeedback =
-          currentAttempts.length > 0
-            ? currentAttempts[currentAttempts.length - 1].feedback
-            : null;
+        const pron = azureData.scores?.pronScore ?? 0;
+        const passed = pron >= 70;
+        const focusWords = (azureData.problemWords || [])
+          .slice(0, 3)
+          .map((w: any) => w.word);
 
-        const { data: teacherData, error: teacherError } = await supabase.functions.invoke(
-          "teacher-eval",
-          {
-            body: {
-              expectedText: segment.expectedText,
-              recognizedText: azureData.recognizedText,
-              azureScores: azureData.scores,
-              problemWords: azureData.problemWords,
-              attemptNumber,
-              previousFeedback,
-            },
-          }
-        );
-
-        if (teacherError) throw new Error(teacherError.message);
-        if (teacherData.error) throw new Error(teacherData.error);
-
+        // No per-attempt LLM call — saves cost. Final review runs at session end.
         const attempt: TeacherAttempt = {
           attemptNumber,
           recognizedText: azureData.recognizedText,
           azureScores: azureData.scores,
           problemWords: azureData.problemWords || [],
-          feedback: teacherData.feedback,
-          shouldRetry: teacherData.shouldRetry,
-          encouragement: teacherData.encouragement,
-          focusWords: teacherData.focusWords || [],
-          passed: teacherData.passed,
+          feedback: passed
+            ? "Great job!"
+            : `Score: ${pron}. Focus on: ${focusWords.join(", ") || "clarity"}.`,
+          shouldRetry: false,
+          encouragement: passed ? "Nice!" : "Keep going!",
+          focusWords,
+          passed,
         };
 
         setCurrentAttempts((prev) => [...prev, attempt]);
         setStatus("feedback");
-
-        await speakText(attempt.feedback);
-
         return attempt;
       } catch (err) {
         console.error("Teacher evaluate error:", err);
@@ -252,7 +238,7 @@ export function useTeacherSession() {
         setIsProcessing(false);
       }
     },
-    [segments, currentSegmentIndex, currentAttempts, speakText]
+    [segments, currentSegmentIndex, currentAttempts]
   );
 
   const retrySegment = useCallback(() => {

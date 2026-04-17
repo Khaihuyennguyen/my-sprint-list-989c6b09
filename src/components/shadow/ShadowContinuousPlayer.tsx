@@ -29,7 +29,7 @@ type Phase =
   | "evaluating"; // sending all to backend
 
 export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: Props) {
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration } = useAudioRecorder();
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder();
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIdx, setCurrentIdx] = useState(0); // index into dialogue
   const [countdown, setCountdown] = useState(3);
@@ -96,11 +96,8 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
       }
       const line = dialogue[idx];
       if (line.role === selectedRole) {
-        // User's turn — auto-start recording
+        // User's turn — show prompt; user must tap to start (browser gesture requirement)
         setPhase("userTurn");
-        resetRecording();
-        await new Promise((r) => setTimeout(r, 400));
-        await startRecording();
       } else {
         // Other speaker — play TTS
         setPhase("playing");
@@ -112,8 +109,13 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dialogue, selectedRole, playTTS, resetRecording, startRecording]
+    [dialogue, selectedRole, playTTS]
   );
+
+  const handleStartUserRecording = useCallback(async () => {
+    resetRecording();
+    await startRecording();
+  }, [resetRecording, startRecording]);
 
   // When user stops recording, save blob and advance
   const handleStopRecording = useCallback(() => {
@@ -302,12 +304,15 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
           <Waveform isActive={isRecording} />
           <VoiceButton
             isRecording={isRecording}
-            isDisabled={!isRecording}
-            onStart={startRecording}
+            isDisabled={false}
+            onStart={handleStartUserRecording}
             onStop={handleStopRecording}
             duration={duration}
           />
-          <p className="text-xs text-primary animate-pulse">🎙️ Recording... tap to stop when done</p>
+          <p className="text-xs text-primary animate-pulse">
+            {isRecording ? "🎙️ Recording... tap to stop when done" : "Tap the mic to record your line"}
+          </p>
+          {error && <p className="text-xs text-destructive text-center max-w-xs">{error}</p>}
         </div>
       )}
 

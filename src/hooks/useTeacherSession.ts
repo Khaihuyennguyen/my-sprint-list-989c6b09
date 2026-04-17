@@ -50,8 +50,7 @@ type TeacherStatus =
   | "countdown"    // 3-2-1
   | "listening"    // ready, awaiting user record
   | "recording"
-  | "evaluating"
-  | "feedback"
+  | "analyzing"    // batch analyzing all recordings at the end
   | "finalizing"   // generating final review
   | "complete";
 
@@ -60,11 +59,11 @@ export function useTeacherSession() {
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [status, setStatus] = useState<TeacherStatus>("idle");
   const [results, setResults] = useState<TeacherResult[]>([]);
-  const [currentAttempts, setCurrentAttempts] = useState<TeacherAttempt[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [finalReview, setFinalReview] = useState<FinalReview | null>(null);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const recordingsRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
 
@@ -131,7 +130,6 @@ export function useTeacherSession() {
     setCountdown(null);
   }, []);
 
-  // Runs a smooth 3-2-1 countdown, resolves when finished
   const runCountdown = useCallback((from = 3): Promise<void> => {
     return new Promise((resolve) => {
       let current = from;
@@ -151,13 +149,11 @@ export function useTeacherSession() {
     });
   }, []);
 
-  // Intro a segment: speak it, then countdown, then call onReady (which starts recording)
   const introSegment = useCallback(
     async (idx: number, onReady: () => void) => {
       const seg = segments[idx];
       if (!seg) return;
       setStatus("intro");
-      // Brief teacher prompt + the sentence
       const intro =
         idx === 0
           ? `Hello! Let's practice. Repeat after me: ${seg.expectedText}`
@@ -176,76 +172,20 @@ export function useTeacherSession() {
       setSegments(segs);
       setCurrentSegmentIndex(0);
       setResults([]);
-      setCurrentAttempts([]);
       setFinalReview(null);
+      recordingsRef.current = [];
       setStatus("listening");
     },
     []
   );
 
-  const evaluateAttempt = useCallback(
-    async (audioBlob: Blob): Promise<TeacherAttempt | null> => {
-      const segment = segments[currentSegmentIndex];
-      if (!segment) return null;
-
-      setIsProcessing(true);
-      setStatus("evaluating");
-
-      try {
-        const formData = new FormData();
-        formData.append("audio", audioBlob, "recording.webm");
-        formData.append("referenceText", segment.expectedText);
-
-        const { data: azureData, error: azureError } = await supabase.functions.invoke(
-          "azure-pronunciation",
-          { body: formData }
-        );
-
-        if (azureError) throw new Error(azureError.message);
-        if (azureData.error) throw new Error(azureData.error);
-
-        const attemptNumber = currentAttempts.length + 1;
-        const pron = azureData.scores?.pronScore ?? 0;
-        const passed = pron >= 70;
-        const focusWords = (azureData.problemWords || [])
-          .slice(0, 3)
-          .map((w: any) => w.word);
-
-        // No per-attempt LLM call — saves cost. Final review runs at session end.
-        const attempt: TeacherAttempt = {
-          attemptNumber,
-          recognizedText: azureData.recognizedText,
-          azureScores: azureData.scores,
-          problemWords: azureData.problemWords || [],
-          feedback: passed
-            ? "Great job!"
-            : `Score: ${pron}. Focus on: ${focusWords.join(", ") || "clarity"}.`,
-          shouldRetry: false,
-          encouragement: passed ? "Nice!" : "Keep going!",
-          focusWords,
-          passed,
-        };
-
-        setCurrentAttempts((prev) => [...prev, attempt]);
-        setStatus("feedback");
-        return attempt;
-      } catch (err) {
-        console.error("Teacher evaluate error:", err);
-        toast.error("Evaluation failed. Try again.");
-        setStatus("listening");
-        return null;
-      } finally {
-        setIsProcessing(false);
-      }
+  // Save the blob locally — no API call. Advance immediately.
+  const saveRecording = useCallback(
+    (audioBlob: Blob) => {
+      recordingsRef.current[currentSegmentIndex] = audioBlob;
     },
-    [segments, currentSegmentIndex, currentAttempts]
+    [currentSegmentIndex]
   );
-
-  const retrySegment = useCallback(() => {
-    stopSpeaking();
-    clearCountdown();
-    setStatus("listening");
-  }, [stopSpeaking, clearCountdown]);
 
   const finalizeSession = useCallback(
     async (allResults: TeacherResult[]) => {
@@ -281,26 +221,73 @@ export function useTeacherSession() {
     []
   );
 
+  // Run Azure on every recorded segment, in parallel, then finalize.
+  const analyzeAll = useCallback(async () => {
+    setStatus("analyzing");
+    const recordings = recordingsRef.current;
+    const total = segments.length;
+    setAnalyzeProgress({ done: 0, total });
+
+    let doneCount = 0;
+    const tasks = segments.map(async (segment, i): Promise<TeacherResult> => {
+      const blob = recordings[i];
+      if (!blob) {
+        doneCount++;
+        setAnalyzeProgress({ done: doneCount, total });
+        return { segment, attempts: [], bestScore: 0 };
+      }
+      try {
+        const formData = new FormData();
+        formData.append("audio", blob, `recording-${i}.webm`);
+        formData.append("referenceText", segment.expectedText);
+
+        const { data: azureData, error: azureError } = await supabase.functions.invoke(
+          "azure-pronunciation",
+          { body: formData }
+        );
+        if (azureError) throw new Error(azureError.message);
+        if (azureData.error) throw new Error(azureData.error);
+
+        const pron = azureData.scores?.pronScore ?? 0;
+        const passed = pron >= 70;
+        const focusWords = (azureData.problemWords || []).slice(0, 3).map((w: any) => w.word);
+        const attempt: TeacherAttempt = {
+          attemptNumber: 1,
+          recognizedText: azureData.recognizedText,
+          azureScores: azureData.scores,
+          problemWords: azureData.problemWords || [],
+          feedback: passed ? "Great job!" : `Focus on: ${focusWords.join(", ") || "clarity"}.`,
+          shouldRetry: false,
+          encouragement: passed ? "Nice!" : "Keep practicing!",
+          focusWords,
+          passed,
+        };
+        doneCount++;
+        setAnalyzeProgress({ done: doneCount, total });
+        return { segment, attempts: [attempt], bestScore: pron };
+      } catch (err) {
+        console.error(`Analyze segment ${i} error:`, err);
+        doneCount++;
+        setAnalyzeProgress({ done: doneCount, total });
+        return { segment, attempts: [], bestScore: 0 };
+      }
+    });
+
+    const allResults = await Promise.all(tasks);
+    setResults(allResults);
+    await finalizeSession(allResults);
+  }, [segments, finalizeSession]);
+
+  // Advance to next segment, or trigger batch analysis at the end.
   const nextSegment = useCallback(() => {
     stopSpeaking();
-    const segment = segments[currentSegmentIndex];
-
-    const bestScore = Math.max(...currentAttempts.map((a) => a.azureScores.pronScore), 0);
-    const updatedResults = [
-      ...results,
-      { segment, attempts: currentAttempts, bestScore },
-    ];
-    setResults(updatedResults);
-
     if (currentSegmentIndex < segments.length - 1) {
       setCurrentSegmentIndex((i) => i + 1);
-      setCurrentAttempts([]);
       setStatus("listening");
     } else {
-      // Session complete — run final analysis
-      finalizeSession(updatedResults);
+      analyzeAll();
     }
-  }, [segments, currentSegmentIndex, currentAttempts, results, stopSpeaking, finalizeSession]);
+  }, [segments.length, currentSegmentIndex, stopSpeaking, analyzeAll]);
 
   const reset = useCallback(() => {
     stopSpeaking();
@@ -308,8 +295,8 @@ export function useTeacherSession() {
     setSegments([]);
     setCurrentSegmentIndex(0);
     setResults([]);
-    setCurrentAttempts([]);
     setFinalReview(null);
+    recordingsRef.current = [];
     setStatus("idle");
   }, [stopSpeaking, clearCountdown]);
 
@@ -318,14 +305,12 @@ export function useTeacherSession() {
     currentSegmentIndex,
     status,
     results,
-    currentAttempts,
-    isProcessing,
     isSpeaking,
     countdown,
     finalReview,
+    analyzeProgress,
     startSession,
-    evaluateAttempt,
-    retrySegment,
+    saveRecording,
     nextSegment,
     speakText,
     stopSpeaking,

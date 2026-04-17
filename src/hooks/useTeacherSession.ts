@@ -130,22 +130,23 @@ export function useTeacherSession() {
     setCountdown(null);
   }, []);
 
-  // Runs a 3-2-1 countdown, resolves when finished
+  // Runs a smooth 3-2-1 countdown, resolves when finished
   const runCountdown = useCallback((from = 3): Promise<void> => {
     return new Promise((resolve) => {
       let current = from;
       setCountdown(current);
-      countdownTimerRef.current = window.setInterval(() => {
+      const tick = () => {
         current -= 1;
         if (current <= 0) {
-          clearInterval(countdownTimerRef.current!);
-          countdownTimerRef.current = null;
           setCountdown(null);
+          countdownTimerRef.current = null;
           resolve();
-        } else {
-          setCountdown(current);
+          return;
         }
-      }, 1000);
+        setCountdown(current);
+        countdownTimerRef.current = window.setTimeout(tick, 750);
+      };
+      countdownTimerRef.current = window.setTimeout(tick, 750);
     });
   }, []);
 

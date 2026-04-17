@@ -29,7 +29,7 @@ type Phase =
   | "evaluating"; // sending all to backend
 
 export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: Props) {
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration } = useAudioRecorder();
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder();
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIdx, setCurrentIdx] = useState(0); // index into dialogue
   const [countdown, setCountdown] = useState(3);

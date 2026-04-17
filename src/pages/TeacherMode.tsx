@@ -6,10 +6,7 @@ import {
   GraduationCap,
   Mic,
   Volume2,
-  RotateCcw,
-  ArrowRight,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   Sparkles,
 } from "lucide-react";
@@ -68,14 +65,12 @@ export default function TeacherMode() {
     currentSegmentIndex,
     status,
     results,
-    currentAttempts,
-    isProcessing,
     isSpeaking,
     countdown,
     finalReview,
+    analyzeProgress,
     startSession,
-    evaluateAttempt,
-    retrySegment,
+    saveRecording,
     nextSegment,
     speakText,
     stopSpeaking,
@@ -100,35 +95,29 @@ export default function TeacherMode() {
   }, [shadowData, startSession]);
 
   const currentSegment = segments[currentSegmentIndex];
-  const latestAttempt = currentAttempts[currentAttempts.length - 1] || null;
 
-  // When blob is ready after recording → evaluate, then auto-advance
+  // When blob arrives → save it locally and auto-advance to next segment (no API call!)
   useEffect(() => {
     if (audioBlob && waitingForBlob.current) {
       waitingForBlob.current = false;
-      evaluateAttempt(audioBlob).then((attempt) => {
-        if (attempt) {
-          // Auto-advance: skip feedback screen, go directly to next sentence (or finalize)
-          setTimeout(() => {
-            resetRecording();
-            nextSegment();
-          }, 600);
-        }
-      });
+      saveRecording(audioBlob);
+      setTimeout(() => {
+        resetRecording();
+        nextSegment();
+      }, 400);
     }
-  }, [audioBlob, evaluateAttempt, nextSegment, resetRecording]);
+  }, [audioBlob, saveRecording, nextSegment, resetRecording]);
 
   const handleStopRecording = useCallback(() => {
     waitingForBlob.current = true;
     stopRecording();
   }, [stopRecording]);
 
-  // Auto-flow: when status becomes "listening" for a new segment, run intro + countdown then auto-start recording
+  // Auto-flow: TTS reads sentence → countdown → auto-start recording
   useEffect(() => {
     if (
       status === "listening" &&
       segments.length > 0 &&
-      currentAttempts.length === 0 &&
       introducedFor.current !== currentSegmentIndex &&
       !isRecording
     ) {
@@ -138,7 +127,7 @@ export default function TeacherMode() {
         await startRecording();
       });
     }
-  }, [status, segments.length, currentSegmentIndex, currentAttempts.length, isRecording, introSegment, resetRecording, startRecording]);
+  }, [status, segments.length, currentSegmentIndex, isRecording, introSegment, resetRecording, startRecording]);
 
   const handleSelectLesson = useCallback(
     (index: number) => {
@@ -149,20 +138,6 @@ export default function TeacherMode() {
     [startSession]
   );
 
-  const handleRetry = useCallback(async () => {
-    resetRecording();
-    retrySegment();
-    // For retry, skip the long intro — just countdown then record
-    setTimeout(async () => {
-      await startRecording();
-    }, 600);
-  }, [resetRecording, retrySegment, startRecording]);
-
-  const handleNext = useCallback(() => {
-    resetRecording();
-    nextSegment();
-  }, [resetRecording, nextSegment]);
-
   const handleReset = useCallback(() => {
     resetRecording();
     reset();
@@ -171,6 +146,31 @@ export default function TeacherMode() {
     shadowStarted.current = false;
   }, [resetRecording, reset]);
 
+  // === ANALYZING (after all recordings done) ===
+  if (status === "analyzing") {
+    const pct = analyzeProgress.total > 0 ? Math.round((analyzeProgress.done / analyzeProgress.total) * 100) : 0;
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="fixed inset-0 pointer-events-none" style={{ background: "var(--gradient-glow)" }} />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center relative z-10 max-w-sm">
+          <Loader2 className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-display font-bold text-foreground mb-2">Analyzing your recordings...</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Scoring {analyzeProgress.done} of {analyzeProgress.total} sentences
+          </p>
+          <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
+            <motion.div
+              className="h-full bg-primary"
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   // === FINALIZING ===
   if (status === "finalizing") {
     return (
@@ -178,14 +178,14 @@ export default function TeacherMode() {
         <div className="fixed inset-0 pointer-events-none" style={{ background: "var(--gradient-glow)" }} />
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center relative z-10">
           <Sparkles className="w-12 h-12 text-primary mx-auto mb-4 animate-pulse" />
-          <h2 className="text-xl font-display font-bold text-foreground mb-2">Analyzing your full session...</h2>
-          <p className="text-sm text-muted-foreground">Generating personalized study plan</p>
+          <h2 className="text-xl font-display font-bold text-foreground mb-2">Building your study plan...</h2>
+          <p className="text-sm text-muted-foreground">Personalized just for you</p>
         </motion.div>
       </div>
     );
   }
 
-  // === COMPLETE SCREEN (with optional final review) ===
+  // === COMPLETE SCREEN ===
   if (status === "complete") {
     const totalAttempts = results.reduce((sum, r) => sum + r.attempts.length, 0);
     const avgScore = results.length > 0
@@ -204,11 +204,10 @@ export default function TeacherMode() {
                 Average Score: <span className="text-primary font-bold text-xl">{avgScore}</span>/100
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {totalAttempts} total attempts across {results.length} sentences
+                {totalAttempts} recordings across {results.length} sentences
               </p>
             </div>
 
-            {/* Final review */}
             {finalReview && (
               <>
                 <div className="glass-card p-5">
@@ -237,7 +236,6 @@ export default function TeacherMode() {
                   </div>
                 </div>
 
-                {/* Study plan CTA */}
                 <button
                   onClick={() =>
                     navigate("/practice-drill", {
@@ -253,7 +251,6 @@ export default function TeacherMode() {
               </>
             )}
 
-            {/* Sentence-by-sentence summary */}
             <div className="space-y-3">
               {results.map((r, i) => (
                 <div key={i} className="glass-card p-4">
@@ -263,7 +260,9 @@ export default function TeacherMode() {
                       <span className={`text-lg font-bold ${r.bestScore >= 70 ? "text-score-high" : r.bestScore >= 50 ? "text-score-mid" : "text-score-low"}`}>
                         {r.bestScore}
                       </span>
-                      <p className="text-[10px] text-muted-foreground">{r.attempts.length} attempt{r.attempts.length !== 1 ? "s" : ""}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {r.attempts.length === 0 ? "skipped" : `${r.attempts.length} attempt`}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -287,7 +286,6 @@ export default function TeacherMode() {
       <div className="fixed inset-0 pointer-events-none" style={{ background: "var(--gradient-glow)" }} />
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => navigate("/")}
@@ -310,7 +308,7 @@ export default function TeacherMode() {
                 Teacher <span className="glow-text text-primary">Mode</span>
               </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Your AI teacher will read each sentence to you, count down, and listen automatically. After the lesson you get a personalized study plan.
+                Your AI teacher reads each sentence, counts down, and records you. Record everything first — your full study plan comes at the end.
               </p>
             </div>
 
@@ -342,7 +340,6 @@ export default function TeacherMode() {
         {/* === ACTIVE SESSION === */}
         {status !== "idle" && currentSegment && (
           <div className="space-y-6">
-            {/* Progress */}
             <div className="flex items-center gap-2">
               {segments.map((_, i) => (
                 <div
@@ -358,7 +355,6 @@ export default function TeacherMode() {
               ))}
             </div>
 
-            {/* Segment info */}
             <div className="text-center">
               {shadowData?.videoTitle && (
                 <p className="text-xs text-muted-foreground mb-1 line-clamp-1">
@@ -367,13 +363,9 @@ export default function TeacherMode() {
               )}
               <p className="text-sm text-muted-foreground">
                 Sentence {currentSegmentIndex + 1} of {segments.length}
-                {currentAttempts.length > 0 && (
-                  <span className="ml-2">• Attempt #{currentAttempts.length + (status === "feedback" ? 0 : 1)}</span>
-                )}
               </p>
             </div>
 
-            {/* Expected text card */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={`seg-${currentSegmentIndex}`}
@@ -391,17 +383,6 @@ export default function TeacherMode() {
                     <p className="text-foreground font-medium leading-relaxed text-lg">
                       {currentSegment.expectedText}
                     </p>
-
-                    {latestAttempt?.focusWords && latestAttempt.focusWords.length > 0 && latestAttempt.shouldRetry && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        <span className="text-xs text-muted-foreground">Focus on:</span>
-                        {latestAttempt.focusWords.map((w, i) => (
-                          <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
-                            {w}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -416,7 +397,6 @@ export default function TeacherMode() {
               </motion.div>
             </AnimatePresence>
 
-            {/* === COUNTDOWN OVERLAY === */}
             <AnimatePresence>
               {countdown !== null && (
                 <motion.div
@@ -440,13 +420,12 @@ export default function TeacherMode() {
               )}
             </AnimatePresence>
 
-            {/* Recording controls — hidden during intro/countdown */}
             {status !== "intro" && status !== "countdown" && (
               <div className="flex flex-col items-center gap-4 py-2">
                 <Waveform isActive={isRecording} />
                 <VoiceButton
                   isRecording={isRecording}
-                  isDisabled={isProcessing || status === "evaluating"}
+                  isDisabled={false}
                   onStart={async () => {
                     stopSpeaking();
                     resetRecording();
@@ -456,15 +435,11 @@ export default function TeacherMode() {
                   duration={duration}
                 />
                 {isRecording && (
-                  <p className="text-xs text-primary animate-pulse">🎙️ Recording... tap to stop when done</p>
+                  <p className="text-xs text-primary animate-pulse">
+                    🎙️ Recording... tap to stop and {currentSegmentIndex < segments.length - 1 ? "go to next" : "finish"}
+                  </p>
                 )}
                 {error && <p className="text-xs text-destructive">{error}</p>}
-                {(isProcessing || status === "evaluating") && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Analyzing your pronunciation...
-                  </div>
-                )}
               </div>
             )}
 
@@ -473,101 +448,6 @@ export default function TeacherMode() {
                 <Volume2 className="w-4 h-4 inline mr-1" />
                 Teacher is speaking...
               </p>
-            )}
-
-            {/* Teacher feedback */}
-            {status === "feedback" && latestAttempt && (
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="glass-card p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-display font-semibold text-foreground">Azure Speech Analysis</h3>
-                    <span className={`text-2xl font-display font-bold ${
-                      latestAttempt.azureScores.pronScore >= 70 ? "text-score-high" :
-                      latestAttempt.azureScores.pronScore >= 50 ? "text-score-mid" : "text-score-low"
-                    }`}>
-                      {latestAttempt.azureScores.pronScore}
-                      <span className="text-xs text-muted-foreground font-normal">/100</span>
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Accuracy", value: latestAttempt.azureScores.accuracyScore },
-                      { label: "Fluency", value: latestAttempt.azureScores.fluencyScore },
-                      { label: "Completeness", value: latestAttempt.azureScores.completenessScore },
-                      { label: "Prosody", value: latestAttempt.azureScores.prosodyScore },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="flex items-center justify-between p-2 rounded-lg bg-secondary/40">
-                        <span className="text-xs text-muted-foreground">{label}</span>
-                        <span className={`text-sm font-bold ${
-                          value >= 70 ? "text-score-high" : value >= 50 ? "text-score-mid" : "text-score-low"
-                        }`}>
-                          {value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 space-y-1">
-                    <p className="text-xs text-muted-foreground">You said:</p>
-                    <p className="text-sm text-foreground italic">"{latestAttempt.recognizedText}"</p>
-                  </div>
-                </div>
-
-                <div className="glass-card p-5">
-                  <div className="flex items-start gap-3">
-                    <GraduationCap className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-primary font-medium mb-1">Teacher says:</p>
-                      <p className="text-sm text-foreground leading-relaxed">{latestAttempt.feedback}</p>
-                      {latestAttempt.encouragement && (
-                        <p className="text-xs text-primary font-semibold mt-2">{latestAttempt.encouragement}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {latestAttempt.problemWords.length > 0 && (
-                  <div className="glass-card p-4">
-                    <h4 className="text-xs font-display font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-destructive" />
-                      Words to improve
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {latestAttempt.problemWords.map((w, i) => (
-                        <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-destructive/10 text-destructive font-medium">
-                          {w.word} ({w.accuracyScore}%)
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  {latestAttempt.shouldRetry && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={handleRetry}
-                      className="flex-1 py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all flex items-center justify-center gap-2"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Try Again
-                    </motion.button>
-                  )}
-                  <motion.button
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    onClick={handleNext}
-                    className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2"
-                    style={{ boxShadow: "var(--shadow-glow)" }}
-                  >
-                    {currentSegmentIndex < segments.length - 1 ? (
-                      <>{latestAttempt.passed ? "Next Sentence" : "Skip"} <ArrowRight className="w-4 h-4" /></>
-                    ) : (
-                      "Finish & Get Study Plan"
-                    )}
-                  </motion.button>
-                </div>
-              </motion.div>
             )}
           </div>
         )}

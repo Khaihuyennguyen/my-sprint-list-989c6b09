@@ -304,12 +304,15 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
           <Waveform isActive={isRecording} />
           <VoiceButton
             isRecording={isRecording}
-            isDisabled={!isRecording}
-            onStart={startRecording}
+            isDisabled={false}
+            onStart={handleStartUserRecording}
             onStop={handleStopRecording}
             duration={duration}
           />
-          <p className="text-xs text-primary animate-pulse">🎙️ Recording... tap to stop when done</p>
+          <p className="text-xs text-primary animate-pulse">
+            {isRecording ? "🎙️ Recording... tap to stop when done" : "Tap the mic to record your line"}
+          </p>
+          {error && <p className="text-xs text-destructive text-center max-w-xs">{error}</p>}
         </div>
       )}
 

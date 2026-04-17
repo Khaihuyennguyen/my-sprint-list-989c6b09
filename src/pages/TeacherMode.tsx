@@ -102,13 +102,21 @@ export default function TeacherMode() {
   const currentSegment = segments[currentSegmentIndex];
   const latestAttempt = currentAttempts[currentAttempts.length - 1] || null;
 
-  // When blob is ready after recording → evaluate
+  // When blob is ready after recording → evaluate, then auto-advance
   useEffect(() => {
     if (audioBlob && waitingForBlob.current) {
       waitingForBlob.current = false;
-      evaluateAttempt(audioBlob);
+      evaluateAttempt(audioBlob).then((attempt) => {
+        if (attempt) {
+          // Auto-advance: skip feedback screen, go directly to next sentence (or finalize)
+          setTimeout(() => {
+            resetRecording();
+            nextSegment();
+          }, 600);
+        }
+      });
     }
-  }, [audioBlob, evaluateAttempt]);
+  }, [audioBlob, evaluateAttempt, nextSegment, resetRecording]);
 
   const handleStopRecording = useCallback(() => {
     waitingForBlob.current = true;

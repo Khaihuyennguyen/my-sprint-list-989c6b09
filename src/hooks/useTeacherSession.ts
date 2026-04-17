@@ -124,6 +124,7 @@ export function useTeacherSession() {
 
   const clearCountdown = useCallback(() => {
     if (countdownTimerRef.current) {
+      clearTimeout(countdownTimerRef.current);
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }

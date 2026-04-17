@@ -96,11 +96,8 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
       }
       const line = dialogue[idx];
       if (line.role === selectedRole) {
-        // User's turn — auto-start recording
+        // User's turn — show prompt; user must tap to start (browser gesture requirement)
         setPhase("userTurn");
-        resetRecording();
-        await new Promise((r) => setTimeout(r, 400));
-        await startRecording();
       } else {
         // Other speaker — play TTS
         setPhase("playing");
@@ -112,8 +109,13 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dialogue, selectedRole, playTTS, resetRecording, startRecording]
+    [dialogue, selectedRole, playTTS]
   );
+
+  const handleStartUserRecording = useCallback(async () => {
+    resetRecording();
+    await startRecording();
+  }, [resetRecording, startRecording]);
 
   // When user stops recording, save blob and advance
   const handleStopRecording = useCallback(() => {

@@ -117,7 +117,9 @@ export default function TeacherMode() {
     stopRecording();
   }, [stopRecording]);
 
-  // Auto-flow: TTS reads sentence → countdown → auto-start recording
+  // Auto-flow: TTS reads sentence → countdown → wait for user tap to record.
+  // We do NOT auto-call getUserMedia here because browsers require a fresh user
+  // gesture for mic access; awaiting TTS + countdown breaks gesture provenance.
   useEffect(() => {
     if (
       status === "listening" &&
@@ -126,12 +128,12 @@ export default function TeacherMode() {
       !isRecording
     ) {
       introducedFor.current = currentSegmentIndex;
-      introSegment(currentSegmentIndex, async () => {
+      introSegment(currentSegmentIndex, () => {
         resetRecording();
-        await startRecording();
+        // User now sees the mic button glow — they tap to start recording.
       });
     }
-  }, [status, segments.length, currentSegmentIndex, isRecording, introSegment, resetRecording, startRecording]);
+  }, [status, segments.length, currentSegmentIndex, isRecording, introSegment, resetRecording]);
 
   const handleSelectLesson = useCallback(
     (index: number) => {
@@ -438,6 +440,11 @@ export default function TeacherMode() {
                   onStop={handleStopRecording}
                   duration={duration}
                 />
+                {!isRecording && status === "listening" && (
+                  <p className="text-xs text-primary animate-pulse">
+                    👇 Tap the mic and say the sentence
+                  </p>
+                )}
                 {isRecording && (
                   <p className="text-xs text-primary animate-pulse">
                     🎙️ Recording... tap to stop and {currentSegmentIndex < segments.length - 1 ? "go to next" : "finish"}

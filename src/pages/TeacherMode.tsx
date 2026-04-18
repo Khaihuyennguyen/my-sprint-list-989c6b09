@@ -79,7 +79,10 @@ export default function TeacherMode() {
   } = useTeacherSession();
 
   const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } =
-    useAudioRecorder();
+    useAudioRecorder({
+      silenceTimeoutMs: 12000,
+      onSilenceStop: () => toast.info("Auto-stopped after silence"),
+    });
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
   const waitingForBlob = useRef(false);

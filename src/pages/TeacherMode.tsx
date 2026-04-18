@@ -440,6 +440,11 @@ export default function TeacherMode() {
                   onStop={handleStopRecording}
                   duration={duration}
                 />
+                {!isRecording && status === "listening" && (
+                  <p className="text-xs text-primary animate-pulse">
+                    👇 Tap the mic and say the sentence
+                  </p>
+                )}
                 {isRecording && (
                   <p className="text-xs text-primary animate-pulse">
                     🎙️ Recording... tap to stop and {currentSegmentIndex < segments.length - 1 ? "go to next" : "finish"}

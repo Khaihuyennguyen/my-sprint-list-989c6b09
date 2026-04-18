@@ -73,15 +73,40 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const startRecording = useCallback(async () => {
     try {
       setError(null);
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("Microphone recording is not supported in this browser.");
+        return;
+      }
+
+      try {
+        if (navigator.permissions?.query) {
+          const permissionStatus = await navigator.permissions.query({
+            name: "microphone" as PermissionName,
+          });
+
+          if (permissionStatus.state === "denied") {
+            setError("Microphone blocked. Please enable it in your browser settings.");
+            return;
+          }
+        }
+      } catch (permissionError) {
+        console.warn("Microphone permission query unavailable:", permissionError);
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
+          ? "audio/webm"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+            ? "audio/mp4"
+            : undefined;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -89,7 +114,8 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const blobType = mimeType ?? recorder.mimeType ?? "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: blobType });
         setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
@@ -127,7 +153,6 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
             if (mediaRecorderRef.current.state !== "recording") return;
 
             analyserRef.current.getByteTimeDomainData(buffer);
-            // Compute RMS around 128 midpoint
             let sumSq = 0;
             for (let i = 0; i < buffer.length; i++) {
               const v = (buffer[i] - 128) / 128;
@@ -144,7 +169,6 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
             const silentFor = now - lastSoundAtRef.current;
 
             if (elapsed > minRecordingMs && silentFor > silenceTimeoutMs) {
-              // Auto-stop
               stopRecording();
               onSilenceStop?.();
               return;
@@ -155,12 +179,23 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
 
           silenceRafRef.current = requestAnimationFrame(checkSilence);
         } catch (e) {
-          // Silence detection is optional — recording still works without it
           console.warn("Silence detection unavailable:", e);
         }
       }
-    } catch (err) {
-      setError("Microphone access denied. Please allow microphone permissions.");
+    } catch (err: any) {
+      console.error("Microphone start failed:", err);
+
+      if (err?.name === "NotAllowedError") {
+        setError("Permission denied. Please allow microphone access in your browser settings.");
+      } else if (err?.name === "NotFoundError") {
+        setError("No microphone found. Please connect a microphone and try again.");
+      } else if (err?.name === "NotReadableError") {
+        setError("Microphone is being used by another app. Please close other apps and try again.");
+      } else if (err?.name === "NotSupportedError") {
+        setError("This browser could not start audio recording.");
+      } else {
+        setError("An unexpected microphone error occurred. Please try again.");
+      }
     }
   }, [silenceTimeoutMs, silenceThreshold, minRecordingMs, onSilenceStop, cleanupSilenceDetection, stopRecording]);
 

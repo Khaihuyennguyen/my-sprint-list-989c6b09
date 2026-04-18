@@ -14,6 +14,7 @@ import { VoiceButton } from "@/components/VoiceButton";
 import { Waveform } from "@/components/Waveform";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTeacherSession, type TeacherSegment } from "@/hooks/useTeacherSession";
+import { toast } from "sonner";
 
 const SAMPLE_LESSONS = [
   {
@@ -79,7 +80,10 @@ export default function TeacherMode() {
   } = useTeacherSession();
 
   const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } =
-    useAudioRecorder();
+    useAudioRecorder({
+      silenceTimeoutMs: 12000,
+      onSilenceStop: () => toast.info("Auto-stopped after silence"),
+    });
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
   const waitingForBlob = useRef(false);

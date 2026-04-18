@@ -47,7 +47,7 @@ export default function PracticeDrill() {
   const [lastResult, setLastResult] = useState<DrillResult | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration } =
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } =
     useAudioRecorder();
   const waitingForBlob = useRef(false);
 
@@ -385,6 +385,7 @@ export default function PracticeDrill() {
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Evaluating...
             </div>
           )}
+          {error && <p className="text-xs text-destructive text-center max-w-sm">{error}</p>}
         </div>
 
         {/* Result */}

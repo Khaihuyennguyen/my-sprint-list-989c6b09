@@ -47,7 +47,7 @@ export default function PracticeDrill() {
   const [lastResult, setLastResult] = useState<DrillResult | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } =
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error, isSilent, mimeType } =
     useAudioRecorder();
   const waitingForBlob = useRef(false);
 
@@ -107,8 +107,11 @@ export default function PracticeDrill() {
       if (!currentText) return;
       setIsEvaluating(true);
       try {
+        const mime = mimeType ?? blob.type ?? "audio/webm";
+        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : "webm";
+        const typedFile = new File([blob], `recording.${ext}`, { type: mime });
         const formData = new FormData();
-        formData.append("audio", blob, "recording.webm");
+        formData.append("audio", typedFile, `recording.${ext}`);
         formData.append("referenceText", currentText);
 
         const fnName = phase === "wordDrill" ? "azure-word-eval" : "azure-pronunciation";
@@ -138,16 +141,21 @@ export default function PracticeDrill() {
         setIsEvaluating(false);
       }
     },
-    [currentText, phase, drillIdx]
+    [currentText, phase, drillIdx, mimeType]
   );
 
-  // When recording stops, evaluate
+  // When recording stops, evaluate (but skip silent uploads)
   useEffect(() => {
     if (audioBlob && waitingForBlob.current) {
       waitingForBlob.current = false;
+      if (isSilent) {
+        toast.error("We didn't hear you. Tap the mic and try again.");
+        resetRecording();
+        return;
+      }
       evaluate(audioBlob);
     }
-  }, [audioBlob, evaluate]);
+  }, [audioBlob, isSilent, evaluate, resetRecording]);
 
   const handleStop = useCallback(() => {
     waitingForBlob.current = true;

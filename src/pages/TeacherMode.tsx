@@ -79,7 +79,7 @@ export default function TeacherMode() {
     reset,
   } = useTeacherSession();
 
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } =
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error, isSilent, mimeType } =
     useAudioRecorder({
       silenceTimeoutMs: 12000,
       onSilenceStop: () => toast.info("Auto-stopped after silence"),
@@ -104,13 +104,20 @@ export default function TeacherMode() {
   useEffect(() => {
     if (audioBlob && waitingForBlob.current) {
       waitingForBlob.current = false;
-      saveRecording(audioBlob);
+      if (isSilent) {
+        toast.error("We didn't hear you. Please tap the mic and try again.");
+        resetRecording();
+        // Stay on the same sentence, let user retry
+        introducedFor.current = null;
+        return;
+      }
+      saveRecording(audioBlob, mimeType ?? audioBlob.type);
       setTimeout(() => {
         resetRecording();
         nextSegment();
       }, 400);
     }
-  }, [audioBlob, saveRecording, nextSegment, resetRecording]);
+  }, [audioBlob, isSilent, mimeType, saveRecording, nextSegment, resetRecording]);
 
   const handleStopRecording = useCallback(() => {
     waitingForBlob.current = true;

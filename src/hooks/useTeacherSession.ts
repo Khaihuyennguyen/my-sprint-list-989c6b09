@@ -63,7 +63,7 @@ export function useTeacherSession() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [finalReview, setFinalReview] = useState<FinalReview | null>(null);
   const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
-  const recordingsRef = useRef<Blob[]>([]);
+  const recordingsRef = useRef<Array<{ blob: Blob; mime: string } | undefined>>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
 
@@ -181,8 +181,11 @@ export function useTeacherSession() {
 
   // Save the blob locally — no API call. Advance immediately.
   const saveRecording = useCallback(
-    (audioBlob: Blob) => {
-      recordingsRef.current[currentSegmentIndex] = audioBlob;
+    (audioBlob: Blob, mime?: string) => {
+      recordingsRef.current[currentSegmentIndex] = {
+        blob: audioBlob,
+        mime: mime ?? audioBlob.type ?? "audio/webm",
+      };
     },
     [currentSegmentIndex]
   );
@@ -230,15 +233,18 @@ export function useTeacherSession() {
 
     let doneCount = 0;
     const tasks = segments.map(async (segment, i): Promise<TeacherResult> => {
-      const blob = recordings[i];
-      if (!blob) {
+      const rec = recordings[i];
+      if (!rec || !rec.blob || rec.blob.size < 1000) {
         doneCount++;
         setAnalyzeProgress({ done: doneCount, total });
         return { segment, attempts: [], bestScore: 0 };
       }
       try {
+        const ext = rec.mime.includes("mp4") ? "mp4" : rec.mime.includes("ogg") ? "ogg" : "webm";
         const formData = new FormData();
-        formData.append("audio", blob, `recording-${i}.webm`);
+        // Re-wrap with the correct type so the multipart File preserves the real MIME.
+        const typedFile = new File([rec.blob], `recording-${i}.${ext}`, { type: rec.mime });
+        formData.append("audio", typedFile, `recording-${i}.${ext}`);
         formData.append("referenceText", segment.expectedText);
 
         const { data: azureData, error: azureError } = await supabase.functions.invoke(

@@ -29,14 +29,14 @@ type Phase =
   | "evaluating"; // sending all to backend
 
 export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: Props) {
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error } = useAudioRecorder({
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error, isSilent, mimeType } = useAudioRecorder({
     silenceTimeoutMs: 12000,
     onSilenceStop: () => toast.info("Auto-stopped after silence"),
   });
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIdx, setCurrentIdx] = useState(0); // index into dialogue
   const [countdown, setCountdown] = useState(3);
-  const [recordings, setRecordings] = useState<Map<number, Blob>>(new Map());
+  const [recordings, setRecordings] = useState<Map<number, { blob: Blob; mime: string }>>(new Map());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waitingForBlob = useRef<{ idx: number } | null>(null);
 
@@ -130,9 +130,16 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
     if (audioBlob && waitingForBlob.current) {
       const idx = waitingForBlob.current.idx;
       waitingForBlob.current = null;
+      if (isSilent) {
+        toast.error("We didn't hear you. Tap the mic and try again.");
+        resetRecording();
+        // Stay on the same line for retry
+        return;
+      }
+      const mime = mimeType ?? audioBlob.type ?? "audio/webm";
       setRecordings((prev) => {
         const next = new Map(prev);
-        next.set(idx, audioBlob);
+        next.set(idx, { blob: audioBlob, mime });
         return next;
       });
       setPhase("transition");
@@ -143,7 +150,7 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
         advanceTo(nextIdx);
       }, 400);
     }
-  }, [audioBlob, advanceTo]);
+  }, [audioBlob, isSilent, mimeType, advanceTo, resetRecording]);
 
   // === Evaluate all recordings ===
   const evaluateAll = useCallback(async () => {
@@ -154,11 +161,13 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
 
       const segmentResults = await Promise.all(
         userIndices.map(async ({ d, i }) => {
-          const blob = recordings.get(i);
-          if (!blob) return { line: d, audioBlob: new Blob() };
+          const rec = recordings.get(i);
+          if (!rec) return { line: d, audioBlob: new Blob() };
 
+          const ext = rec.mime.includes("mp4") ? "mp4" : rec.mime.includes("ogg") ? "ogg" : "webm";
+          const typedFile = new File([rec.blob], `recording.${ext}`, { type: rec.mime });
           const formData = new FormData();
-          formData.append("audio", blob, "recording.webm");
+          formData.append("audio", typedFile, `recording.${ext}`);
           formData.append("referenceText", d.text);
 
           try {
@@ -168,14 +177,14 @@ export function ShadowContinuousPlayer({ dialogue, selectedRole, onComplete }: P
             if (error) throw error;
             return {
               line: d,
-              audioBlob: blob,
+              audioBlob: rec.blob,
               azureScores: data.scores,
               recognizedText: data.recognizedText,
               problemWords: data.problemWords || [],
             };
           } catch (err) {
             console.error("Azure eval failed for line", i, err);
-            return { line: d, audioBlob: blob };
+            return { line: d, audioBlob: rec.blob };
           }
         })
       );

@@ -19,6 +19,14 @@ Deno.serve(async (req) => {
     }
 
     // conversation: [{ expectedText, recognizedText, azureScores, problemWords, attempts }]
+    const validUtterances = conversation.filter((c: any) => {
+      const recognized = (c.recognizedText ?? "").trim();
+      const pron = Number(c.azureScores?.pronScore ?? 0);
+      return recognized && recognized !== "." && pron > 0;
+    });
+
+    const allFailedCapture = conversation.length > 0 && validUtterances.length === 0;
+
     const summary = conversation
       .map((c: any, i: number) => `Sentence ${i + 1}:
 - Expected: "${c.expectedText}"
@@ -47,6 +55,26 @@ Deno.serve(async (req) => {
       .sort((a, b) => a[1].avgScore - b[1].avgScore)
       .slice(0, 8)
       .map(([word, stats]) => ({ word, accuracy: Math.round(stats.avgScore), occurrences: stats.count }));
+
+    if (allFailedCapture) {
+      return new Response(
+        JSON.stringify({
+          overallSummary:
+            "It appears no audio was captured during this practice session, so I couldn't evaluate your pronunciation. This is likely a microphone or recording issue rather than a speaking assessment.",
+          strengths: ["You completed the practice flow", "The lesson structure is ready for another attempt"],
+          weaknesses: ["No usable speech audio was detected", "Pronunciation scores could not be calculated"],
+          studyPlan: {
+            wordDrills: [],
+            sentenceDrills: [],
+            dailyRoutine:
+              "Before retrying, check that your microphone is connected, browser mic permission is allowed, and another app is not using the mic. Then run the lesson again and speak clearly after tapping the mic.",
+          },
+          topProblemWords: [],
+          captureFailed: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const prompt = `You are an expert English pronunciation coach reviewing a complete practice session.
 

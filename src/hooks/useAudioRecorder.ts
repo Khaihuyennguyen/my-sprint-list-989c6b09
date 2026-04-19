@@ -15,6 +15,10 @@ interface UseAudioRecorderReturn {
   isRecording: boolean;
   audioBlob: Blob | null;
   duration: number;
+  /** Actual MIME type produced by MediaRecorder (e.g. "audio/webm;codecs=opus" or "audio/mp4"). */
+  mimeType: string | null;
+  /** True if the last recording appears to be silent / mic captured nothing meaningful. */
+  isSilent: boolean;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   resetRecording: () => void;
@@ -32,6 +36,8 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [duration, setDuration] = useState(0);
+  const [mimeType, setMimeType] = useState<string | null>(null);
+  const [isSilent, setIsSilent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -45,6 +51,8 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const silenceRafRef = useRef<number | null>(null);
   const lastSoundAtRef = useRef<number>(0);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const peakRmsRef = useRef<number>(0);
+  const soundFramesRef = useRef<number>(0);
 
   const cleanupSilenceDetection = useCallback(() => {
     if (silenceRafRef.current) {
@@ -73,30 +81,37 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const startRecording = useCallback(async () => {
     try {
       setError(null);
+      setIsSilent(false);
+      peakRmsRef.current = 0;
+      soundFramesRef.current = 0;
 
       if (!navigator.mediaDevices?.getUserMedia) {
         setError("Microphone recording is not supported in this browser.");
         return;
       }
 
-      try {
-        if (navigator.permissions?.query) {
-          const permissionStatus = await navigator.permissions.query({
-            name: "microphone" as PermissionName,
-          });
-
-          if (permissionStatus.state === "denied") {
-            setError("Microphone blocked. Please enable it in your browser settings.");
-            return;
-          }
-        }
-      } catch (permissionError) {
-        console.warn("Microphone permission query unavailable:", permissionError);
-      }
-
+      // CRITICAL: call getUserMedia BEFORE any other awaits to preserve the
+      // browser "user gesture" chain. Awaiting permissions.query first can
+      // make Safari/Chrome treat the gesture as expired.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      // Non-blocking permission status check (just for nicer error reporting).
+      // We only act on it if the gesture-bound getUserMedia somehow succeeded
+      // but the browser later reports denied — which shouldn't happen, but is safe.
+      try {
+        if (navigator.permissions?.query) {
+          navigator.permissions
+            .query({ name: "microphone" as PermissionName })
+            .then((s) => {
+              if (s.state === "denied") {
+                console.warn("Microphone permission reports denied after capture.");
+              }
+            })
+            .catch(() => {});
+        }
+      } catch { /* noop */ }
+
+      const preferred = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
@@ -104,18 +119,26 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
             ? "audio/mp4"
             : undefined;
 
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
+      const recorder = preferred
+        ? new MediaRecorder(stream, { mimeType: preferred })
         : new MediaRecorder(stream);
       chunksRef.current = [];
+
+      // The actual mimeType the browser ends up using (Safari often falls back to mp4).
+      const actualMime = recorder.mimeType || preferred || "audio/webm";
+      setMimeType(actualMime);
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blobType = mimeType ?? recorder.mimeType ?? "audio/webm";
-        const blob = new Blob(chunksRef.current, { type: blobType });
+        const blob = new Blob(chunksRef.current, { type: actualMime });
+        // Sanity check: tiny blob OR captured almost no audible frames
+        const tooSmall = blob.size < 2000; // ~few hundred ms of opus at low bitrate
+        const tooQuiet = peakRmsRef.current < silenceThreshold && soundFramesRef.current < 3;
+        const silent = tooSmall || tooQuiet;
+        setIsSilent(silent);
         setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
@@ -133,54 +156,58 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
       }, 200);
 
       // === Silence detection setup ===
-      if (silenceTimeoutMs > 0) {
-        try {
-          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-          const audioCtx = new AudioCtx();
-          const source = audioCtx.createMediaStreamSource(stream);
-          const analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 1024;
-          source.connect(analyser);
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const audioCtx = new AudioCtx();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
 
-          audioCtxRef.current = audioCtx;
-          analyserRef.current = analyser;
-          sourceRef.current = source;
+        audioCtxRef.current = audioCtx;
+        analyserRef.current = analyser;
+        sourceRef.current = source;
 
-          const buffer = new Uint8Array(analyser.fftSize);
+        const buffer = new Uint8Array(analyser.fftSize);
 
-          const checkSilence = () => {
-            if (!analyserRef.current || !mediaRecorderRef.current) return;
-            if (mediaRecorderRef.current.state !== "recording") return;
+        const checkSilence = () => {
+          if (!analyserRef.current || !mediaRecorderRef.current) return;
+          if (mediaRecorderRef.current.state !== "recording") return;
 
-            analyserRef.current.getByteTimeDomainData(buffer);
-            let sumSq = 0;
-            for (let i = 0; i < buffer.length; i++) {
-              const v = (buffer[i] - 128) / 128;
-              sumSq += v * v;
-            }
-            const rms = Math.sqrt(sumSq / buffer.length);
+          analyserRef.current.getByteTimeDomainData(buffer);
+          let sumSq = 0;
+          for (let i = 0; i < buffer.length; i++) {
+            const v = (buffer[i] - 128) / 128;
+            sumSq += v * v;
+          }
+          const rms = Math.sqrt(sumSq / buffer.length);
+          if (rms > peakRmsRef.current) peakRmsRef.current = rms;
 
-            const now = Date.now();
-            if (rms > silenceThreshold) {
-              lastSoundAtRef.current = now;
-            }
+          const now = Date.now();
+          if (rms > silenceThreshold) {
+            lastSoundAtRef.current = now;
+            soundFramesRef.current += 1;
+          }
 
-            const elapsed = now - startTimeRef.current;
-            const silentFor = now - lastSoundAtRef.current;
+          const elapsed = now - startTimeRef.current;
+          const silentFor = now - lastSoundAtRef.current;
 
-            if (elapsed > minRecordingMs && silentFor > silenceTimeoutMs) {
-              stopRecording();
-              onSilenceStop?.();
-              return;
-            }
-
-            silenceRafRef.current = requestAnimationFrame(checkSilence);
-          };
+          if (
+            silenceTimeoutMs > 0 &&
+            elapsed > minRecordingMs &&
+            silentFor > silenceTimeoutMs
+          ) {
+            stopRecording();
+            onSilenceStop?.();
+            return;
+          }
 
           silenceRafRef.current = requestAnimationFrame(checkSilence);
-        } catch (e) {
-          console.warn("Silence detection unavailable:", e);
-        }
+        };
+
+        silenceRafRef.current = requestAnimationFrame(checkSilence);
+      } catch (e) {
+        console.warn("Silence detection unavailable:", e);
       }
     } catch (err: any) {
       console.error("Microphone start failed:", err);
@@ -203,7 +230,20 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     setAudioBlob(null);
     setDuration(0);
     setError(null);
+    setIsSilent(false);
+    peakRmsRef.current = 0;
+    soundFramesRef.current = 0;
   }, []);
 
-  return { isRecording, audioBlob, duration, startRecording, stopRecording, resetRecording, error };
+  return {
+    isRecording,
+    audioBlob,
+    duration,
+    mimeType,
+    isSilent,
+    startRecording,
+    stopRecording,
+    resetRecording,
+    error,
+  };
 }

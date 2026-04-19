@@ -3,6 +3,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map our recorder MIME types to Azure-acceptable Content-Type values.
+function azureContentTypeFor(rawMime: string | null | undefined, fallback = "audio/webm; codecs=opus"): string {
+  if (!rawMime) return fallback;
+  const m = rawMime.toLowerCase();
+  if (m.includes("webm")) {
+    // Azure accepts: audio/webm; codecs=opus
+    return m.includes("opus") ? "audio/webm; codecs=opus" : "audio/webm; codecs=opus";
+  }
+  if (m.includes("mp4") || m.includes("m4a") || m.includes("aac")) {
+    // Azure accepts MP4/AAC via this content-type
+    return "audio/mp4";
+  }
+  if (m.includes("ogg")) {
+    return "audio/ogg; codecs=opus";
+  }
+  if (m.includes("wav")) {
+    return "audio/wav";
+  }
+  return fallback;
+}
+
+// Pull a numeric score from either top-level field OR nested PronunciationAssessment field.
+function pickScore(node: any, key: string): number {
+  if (!node) return 0;
+  if (typeof node[key] === "number") return node[key];
+  const nested = node.PronunciationAssessment;
+  if (nested && typeof nested[key] === "number") return nested[key];
+  return 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -27,8 +57,31 @@ Deno.serve(async (req) => {
     }
 
     const audioBytes = await audioFile.arrayBuffer();
+    const audioContentType = azureContentTypeFor(audioFile.type);
 
-    // Build pronunciation assessment parameters
+    console.log(
+      "azure-pronunciation: received",
+      audioFile.size,
+      "bytes; client mime =",
+      audioFile.type,
+      "; forwarding as",
+      audioContentType
+    );
+
+    if (audioBytes.byteLength < 1000) {
+      console.warn("azure-pronunciation: audio is suspiciously small, returning empty result");
+      return new Response(
+        JSON.stringify({
+          recognizedText: "",
+          scores: { accuracyScore: 0, fluencyScore: 0, completenessScore: 0, pronScore: 0, prosodyScore: 0 },
+          words: [],
+          problemWords: [],
+          warning: "audio_too_short",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const pronAssessmentParams = {
       ReferenceText: referenceText,
       GradingSystem: "HundredMark",
@@ -41,7 +94,6 @@ Deno.serve(async (req) => {
 
     const pronAssessmentParamsBase64 = btoa(JSON.stringify(pronAssessmentParams));
 
-    // Call Azure Speech REST API for pronunciation assessment
     const url = `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US&usePipelineVersion=0`;
 
     const response = await fetch(url, {
@@ -49,7 +101,7 @@ Deno.serve(async (req) => {
       headers: {
         Accept: "application/json;text/xml",
         Connection: "Keep-Alive",
-        "Content-Type": "audio/webm; codecs=opus",
+        "Content-Type": audioContentType,
         "Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY,
         "Pronunciation-Assessment": pronAssessmentParamsBase64,
       },
@@ -65,43 +117,60 @@ Deno.serve(async (req) => {
     const result = await response.json();
     console.log("Azure raw result:", JSON.stringify(result));
 
-    // Extract scores from Azure response
+    // Detect "no speech recognized"
+    if (result.RecognitionStatus && result.RecognitionStatus !== "Success") {
+      console.warn("Azure RecognitionStatus:", result.RecognitionStatus);
+      return new Response(
+        JSON.stringify({
+          recognizedText: "",
+          scores: { accuracyScore: 0, fluencyScore: 0, completenessScore: 0, pronScore: 0, prosodyScore: 0 },
+          words: [],
+          problemWords: [],
+          warning: "no_speech_recognized",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const nBest = result.NBest?.[0];
     if (!nBest) {
       throw new Error("No recognition result from Azure");
     }
 
-    const pronAssessment = nBest.PronunciationAssessment || {};
-
-    // Map Azure scores (0-100) to our format
+    // Scores can live at top level OR nested under PronunciationAssessment.
     const scores = {
-      accuracyScore: pronAssessment.AccuracyScore || 0,
-      fluencyScore: pronAssessment.FluencyScore || 0,
-      completenessScore: pronAssessment.CompletenessScore || 0,
-      pronScore: pronAssessment.PronScore || 0,
-      prosodyScore: pronAssessment.ProsodyScore || 0,
+      accuracyScore: pickScore(nBest, "AccuracyScore"),
+      fluencyScore: pickScore(nBest, "FluencyScore"),
+      completenessScore: pickScore(nBest, "CompletenessScore"),
+      pronScore: pickScore(nBest, "PronScore"),
+      prosodyScore: pickScore(nBest, "ProsodyScore"),
     };
 
-    // Extract word-level details
-    const words = (nBest.Words || []).map((w: any) => ({
-      word: w.Word,
-      accuracyScore: w.PronunciationAssessment?.AccuracyScore || 0,
-      errorType: w.PronunciationAssessment?.ErrorType || "None",
-      phonemes: (w.Phonemes || []).map((p: any) => ({
-        phoneme: p.Phoneme,
-        ipaPhoneme: p.PronunciationAssessment?.NBestPhonemes?.[0]?.Phoneme || p.Phoneme,
-        accuracyScore: p.PronunciationAssessment?.AccuracyScore || 0,
-      })),
-    }));
+    // Extract word-level details — same dual-shape handling.
+    const words = (nBest.Words || []).map((w: any) => {
+      const accuracy = pickScore(w, "AccuracyScore");
+      const errorType =
+        w.ErrorType ?? w.PronunciationAssessment?.ErrorType ?? "None";
+      return {
+        word: w.Word,
+        accuracyScore: accuracy,
+        errorType,
+        phonemes: (w.Phonemes || []).map((p: any) => ({
+          phoneme: p.Phoneme,
+          ipaPhoneme:
+            p.PronunciationAssessment?.NBestPhonemes?.[0]?.Phoneme ?? p.Phoneme,
+          accuracyScore: pickScore(p, "AccuracyScore"),
+        })),
+      };
+    });
 
-    // Find problem words (accuracy < 80 or errorType != None)
     const problemWords = words.filter(
       (w: any) => w.accuracyScore < 80 || w.errorType !== "None"
     );
 
     return new Response(
       JSON.stringify({
-        recognizedText: nBest.Display || nBest.Lexical || "",
+        recognizedText: nBest.Display || nBest.Lexical || result.DisplayText || "",
         scores,
         words,
         problemWords,

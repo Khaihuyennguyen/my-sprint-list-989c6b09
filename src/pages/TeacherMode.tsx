@@ -201,8 +201,9 @@ export default function TeacherMode() {
   // === COMPLETE SCREEN ===
   if (status === "complete") {
     const totalAttempts = results.reduce((sum, r) => sum + r.attempts.length, 0);
-    const avgScore = results.length > 0
-      ? Math.round(results.reduce((sum, r) => sum + r.bestScore, 0) / results.length)
+    const hasUsableScores = results.some((r) => r.bestScore > 0);
+    const avgScore = hasUsableScores
+      ? Math.round(results.reduce((sum, r) => sum + r.bestScore, 0) / results.filter((r) => r.bestScore > 0).length)
       : 0;
 
     return (
@@ -214,7 +215,11 @@ export default function TeacherMode() {
               <CheckCircle2 className="w-16 h-16 text-primary mx-auto mb-4" />
               <h1 className="text-3xl font-display font-bold text-foreground mb-2">Lesson Complete!</h1>
               <p className="text-muted-foreground">
-                Average Score: <span className="text-primary font-bold text-xl">{avgScore}</span>/100
+                {hasUsableScores ? (
+                  <>Average Score: <span className="text-primary font-bold text-xl">{avgScore}</span>/100</>
+                ) : (
+                  <span>No usable audio was captured for scoring</span>
+                )}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {totalAttempts} recordings across {results.length} sentences
@@ -249,18 +254,26 @@ export default function TeacherMode() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() =>
-                    navigate("/practice-drill", {
-                      state: { finalReview, source: "teacher" },
-                    })
-                  }
-                  className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2"
-                  style={{ boxShadow: "var(--shadow-glow)" }}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Start Personalized Practice ({finalReview.studyPlan.wordDrills.length} words + {finalReview.studyPlan.sentenceDrills.length} sentences)
-                </button>
+                {(finalReview as any).captureFailed ? (
+                  <div className="glass-card p-4 border border-destructive/30">
+                    <p className="text-sm text-foreground leading-relaxed">
+                      Check browser microphone permission, make sure no other app is using the mic, and try the lesson again.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() =>
+                      navigate("/practice-drill", {
+                        state: { finalReview, source: "teacher" },
+                      })
+                    }
+                    className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                    style={{ boxShadow: "var(--shadow-glow)" }}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Start Personalized Practice ({finalReview.studyPlan.wordDrills.length} words + {finalReview.studyPlan.sentenceDrills.length} sentences)
+                  </button>
+                )}
               </>
             )}
 

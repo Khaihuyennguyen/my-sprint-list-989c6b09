@@ -223,9 +223,46 @@ export default function TeacherMode() {
     resetRecording();
     reset();
     setSelectedLesson(null);
+    setSavedHistory(false);
     introducedFor.current = null;
     shadowStarted.current = false;
   }, [resetRecording, reset]);
+
+  const handleSaveToHistory = useCallback(async () => {
+    if (savingHistory || savedHistory) return;
+    setSavingHistory(true);
+    const lessonTitle =
+      selectedLesson != null ? SAMPLE_LESSONS[selectedLesson]?.title : "Teacher Session";
+    const questions = results.map((r, i) => {
+      const best = r.attempts.reduce(
+        (b, a) => (a.azureScores.pronScore > (b?.azureScores.pronScore ?? -1) ? a : b),
+        r.attempts[0]
+      );
+      return {
+        questionIndex: i,
+        questionText: r.segment.expectedText,
+        transcript: best?.recognizedText ?? "",
+        scores: best
+          ? {
+              clarity: Math.round(best.azureScores.accuracyScore),
+              structure: Math.round(best.azureScores.fluencyScore),
+              completeness: Math.round(best.azureScores.completenessScore),
+            }
+          : null,
+        feedbackText: best?.feedback ?? null,
+        audioUrl: null,
+      };
+    });
+    const saved = await saveSession("teacher" as any, "medium" as any, questions);
+    setSavingHistory(false);
+    if (saved) {
+      setSavedHistory(true);
+      toast.success(`Saved "${lessonTitle}" to History`);
+    } else {
+      toast.error("Could not save. Please make sure you're signed in.");
+    }
+  }, [results, savingHistory, savedHistory, selectedLesson]);
+
 
   // === ANALYZING (after all recordings done) ===
   if (status === "analyzing") {

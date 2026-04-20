@@ -384,28 +384,30 @@ export default function TeacherMode() {
 
             <div className="space-y-3">
               {results.map((r, i) => (
-                <div key={i} className="glass-card p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm text-foreground flex-1">"{r.segment.expectedText}"</p>
-                    <div className="text-right shrink-0">
-                      <span className={`text-lg font-bold ${r.bestScore >= 70 ? "text-score-high" : r.bestScore >= 50 ? "text-score-mid" : "text-score-low"}`}>
-                        {r.bestScore}
-                      </span>
-                      <p className="text-[10px] text-muted-foreground">
-                        {r.attempts.length === 0 ? "skipped" : `${r.attempts.length} attempt`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <SegmentResultCard key={i} result={r} />
               ))}
             </div>
 
-            <button
-              onClick={handleReset}
-              className="w-full py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all"
-            >
-              Try Another Lesson
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={handleSaveToHistory}
+                disabled={savingHistory || savedHistory || !hasUsableScores}
+                className="py-3.5 rounded-xl bg-secondary text-secondary-foreground font-display font-semibold hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingHistory ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {savedHistory ? "Saved to History" : savingHistory ? "Saving..." : "Save to History"}
+              </button>
+              <button
+                onClick={handleReset}
+                className="py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all"
+              >
+                Try Another Lesson
+              </button>
+            </div>
           </motion.div>
         </div>
       </div>

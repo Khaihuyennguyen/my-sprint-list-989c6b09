@@ -19,6 +19,8 @@ interface UseAudioRecorderReturn {
   mimeType: string | null;
   /** True if the last recording appears to be silent / mic captured nothing meaningful. */
   isSilent: boolean;
+  /** True as soon as the mic detects audible sound during the current recording. Resets on start/reset. */
+  hasDetectedSound: boolean;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   resetRecording: () => void;
@@ -38,6 +40,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const [duration, setDuration] = useState(0);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [isSilent, setIsSilent] = useState(false);
+  const [hasDetectedSound, setHasDetectedSound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -82,6 +85,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     try {
       setError(null);
       setIsSilent(false);
+      setHasDetectedSound(false);
       peakRmsRef.current = 0;
       soundFramesRef.current = 0;
 
@@ -187,6 +191,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
           if (rms > silenceThreshold) {
             lastSoundAtRef.current = now;
             soundFramesRef.current += 1;
+            if (soundFramesRef.current === 1) setHasDetectedSound(true);
           }
 
           const elapsed = now - startTimeRef.current;
@@ -231,6 +236,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     setDuration(0);
     setError(null);
     setIsSilent(false);
+    setHasDetectedSound(false);
     peakRmsRef.current = 0;
     soundFramesRef.current = 0;
   }, []);
@@ -241,6 +247,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     duration,
     mimeType,
     isSilent,
+    hasDetectedSound,
     startRecording,
     stopRecording,
     resetRecording,

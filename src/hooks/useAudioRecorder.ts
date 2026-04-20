@@ -236,6 +236,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     setDuration(0);
     setError(null);
     setIsSilent(false);
+    setHasDetectedSound(false);
     peakRmsRef.current = 0;
     soundFramesRef.current = 0;
   }, []);
@@ -246,6 +247,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     duration,
     mimeType,
     isSilent,
+    hasDetectedSound,
     startRecording,
     stopRecording,
     resetRecording,

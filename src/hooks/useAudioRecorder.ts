@@ -40,6 +40,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
   const [duration, setDuration] = useState(0);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [isSilent, setIsSilent] = useState(false);
+  const [hasDetectedSound, setHasDetectedSound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);

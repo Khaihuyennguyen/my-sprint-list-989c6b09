@@ -14,19 +14,16 @@ import { VoiceButton } from "@/components/VoiceButton";
 import { Waveform } from "@/components/Waveform";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTeacherSession, type TeacherSegment } from "@/hooks/useTeacherSession";
+import { SegmentResultCard } from "@/components/teacher/SegmentResultCard";
+import { saveSession } from "@/lib/sessionHistory";
+import { Save } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLE_LESSONS = [
+  // === Job interview practice ===
   {
-    title: "Business Meeting",
-    segments: [
-      { expectedText: "I'd like to schedule a meeting to discuss the quarterly results.", role: "You", index: 0 },
-      { expectedText: "Could you please share your screen so we can review the data together?", role: "You", index: 1 },
-      { expectedText: "Let me summarize the key takeaways from today's discussion.", role: "You", index: 2 },
-    ],
-  },
-  {
-    title: "Job Interview",
+    title: "Job Interview — Intro",
+    category: "Interview",
     segments: [
       { expectedText: "Thank you for the opportunity. I'm excited to discuss this role.", role: "You", index: 0 },
       { expectedText: "In my previous position, I led a team of twelve engineers.", role: "You", index: 1 },
@@ -34,15 +31,84 @@ const SAMPLE_LESSONS = [
     ],
   },
   {
-    title: "Daily Conversation",
+    title: "Job Interview — Behavioral",
+    category: "Interview",
     segments: [
-      { expectedText: "Good morning! How are you doing today?", role: "You", index: 0 },
-      { expectedText: "I've been meaning to ask you about the weather this weekend.", role: "You", index: 1 },
-      { expectedText: "Would you like to grab a coffee after work?", role: "You", index: 2 },
+      { expectedText: "Tell me about a time you handled a difficult stakeholder.", role: "You", index: 0 },
+      { expectedText: "I focused on listening first, then proposed a clear next step.", role: "You", index: 1 },
+      { expectedText: "The outcome was a stronger relationship and a delivered project.", role: "You", index: 2 },
     ],
   },
   {
-    title: "Technology Discussion",
+    title: "Job Interview — Salary & Closing",
+    category: "Interview",
+    segments: [
+      { expectedText: "Based on my research, my expected range is competitive with the market.", role: "You", index: 0 },
+      { expectedText: "I'm open to discussing the full compensation package, not just base salary.", role: "You", index: 1 },
+      { expectedText: "What are the next steps in your hiring process?", role: "You", index: 2 },
+    ],
+  },
+
+  // === Everyday English ===
+  {
+    title: "Everyday — Coffee Shop",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Hi, could I get a medium oat milk latte, please?", role: "You", index: 0 },
+      { expectedText: "Is it possible to make that decaf?", role: "You", index: 1 },
+      { expectedText: "Thanks so much, have a great day!", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Everyday — Asking Directions",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Excuse me, could you tell me how to get to the train station?", role: "You", index: 0 },
+      { expectedText: "Is it within walking distance, or should I take a taxi?", role: "You", index: 1 },
+      { expectedText: "Thank you, I really appreciate your help.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Everyday — Small Talk",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Good morning! How are you doing today?", role: "You", index: 0 },
+      { expectedText: "Any plans for the weekend?", role: "You", index: 1 },
+      { expectedText: "Would you like to grab a coffee after work?", role: "You", index: 2 },
+    ],
+  },
+
+  // === Business meetings ===
+  {
+    title: "Business — Daily Standup",
+    category: "Business",
+    segments: [
+      { expectedText: "Yesterday I finished the API integration and ran the test suite.", role: "You", index: 0 },
+      { expectedText: "Today I'll focus on the dashboard refactor and code review.", role: "You", index: 1 },
+      { expectedText: "I'm blocked on the staging environment, could someone help unblock me?", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Business — Presenting Results",
+    category: "Business",
+    segments: [
+      { expectedText: "I'd like to walk you through this quarter's key results.", role: "You", index: 0 },
+      { expectedText: "Could you please share your screen so we can review the data together?", role: "You", index: 1 },
+      { expectedText: "Let me summarize the three main takeaways from today's discussion.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Business — Negotiating",
+    category: "Business",
+    segments: [
+      { expectedText: "I understand your position, but let me share another perspective.", role: "You", index: 0 },
+      { expectedText: "Would you be open to a compromise on the timeline?", role: "You", index: 1 },
+      { expectedText: "I think we can find a solution that works for both sides.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Tech — Architecture Review",
+    category: "Business",
     segments: [
       { expectedText: "Artificial intelligence is transforming the way we work and live.", role: "You", index: 0 },
       { expectedText: "The algorithm processes thousands of data points per second.", role: "You", index: 1 },
@@ -86,6 +152,8 @@ export default function TeacherMode() {
     });
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [savedHistory, setSavedHistory] = useState(false);
   const waitingForBlob = useRef(false);
   const shadowStarted = useRef(false);
   const introducedFor = useRef<number | null>(null);
@@ -155,9 +223,46 @@ export default function TeacherMode() {
     resetRecording();
     reset();
     setSelectedLesson(null);
+    setSavedHistory(false);
     introducedFor.current = null;
     shadowStarted.current = false;
   }, [resetRecording, reset]);
+
+  const handleSaveToHistory = useCallback(async () => {
+    if (savingHistory || savedHistory) return;
+    setSavingHistory(true);
+    const lessonTitle =
+      selectedLesson != null ? SAMPLE_LESSONS[selectedLesson]?.title : "Teacher Session";
+    const questions = results.map((r, i) => {
+      const best = r.attempts.reduce(
+        (b, a) => (a.azureScores.pronScore > (b?.azureScores.pronScore ?? -1) ? a : b),
+        r.attempts[0]
+      );
+      return {
+        questionIndex: i,
+        questionText: r.segment.expectedText,
+        transcript: best?.recognizedText ?? "",
+        scores: best
+          ? {
+              clarity: Math.round(best.azureScores.accuracyScore),
+              structure: Math.round(best.azureScores.fluencyScore),
+              completeness: Math.round(best.azureScores.completenessScore),
+            }
+          : null,
+        feedbackText: best?.feedback ?? null,
+        audioUrl: null,
+      };
+    });
+    const saved = await saveSession("teacher" as any, "medium" as any, questions);
+    setSavingHistory(false);
+    if (saved) {
+      setSavedHistory(true);
+      toast.success(`Saved "${lessonTitle}" to History`);
+    } else {
+      toast.error("Could not save. Please make sure you're signed in.");
+    }
+  }, [results, savingHistory, savedHistory, selectedLesson]);
+
 
   // === ANALYZING (after all recordings done) ===
   if (status === "analyzing") {
@@ -279,28 +384,30 @@ export default function TeacherMode() {
 
             <div className="space-y-3">
               {results.map((r, i) => (
-                <div key={i} className="glass-card p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm text-foreground flex-1">"{r.segment.expectedText}"</p>
-                    <div className="text-right shrink-0">
-                      <span className={`text-lg font-bold ${r.bestScore >= 70 ? "text-score-high" : r.bestScore >= 50 ? "text-score-mid" : "text-score-low"}`}>
-                        {r.bestScore}
-                      </span>
-                      <p className="text-[10px] text-muted-foreground">
-                        {r.attempts.length === 0 ? "skipped" : `${r.attempts.length} attempt`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <SegmentResultCard key={i} result={r} />
               ))}
             </div>
 
-            <button
-              onClick={handleReset}
-              className="w-full py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all"
-            >
-              Try Another Lesson
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={handleSaveToHistory}
+                disabled={savingHistory || savedHistory || !hasUsableScores}
+                className="py-3.5 rounded-xl bg-secondary text-secondary-foreground font-display font-semibold hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingHistory ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {savedHistory ? "Saved to History" : savingHistory ? "Saving..." : "Save to History"}
+              </button>
+              <button
+                onClick={handleReset}
+                className="py-3.5 rounded-xl border border-primary/30 text-primary font-display font-semibold hover:bg-primary/10 transition-all"
+              >
+                Try Another Lesson
+              </button>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -348,9 +455,16 @@ export default function TeacherMode() {
                   onClick={() => handleSelectLesson(i)}
                   className="glass-card p-5 text-left hover:border-primary/40 transition-all group"
                 >
-                  <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {lesson.title}
-                  </h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
+                      {lesson.title}
+                    </h3>
+                    {lesson.category && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider shrink-0">
+                        {lesson.category}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {lesson.segments.length} sentences to practice
                   </p>

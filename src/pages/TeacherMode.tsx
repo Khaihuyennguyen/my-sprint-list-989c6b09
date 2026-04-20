@@ -14,6 +14,9 @@ import { VoiceButton } from "@/components/VoiceButton";
 import { Waveform } from "@/components/Waveform";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTeacherSession, type TeacherSegment } from "@/hooks/useTeacherSession";
+import { SegmentResultCard } from "@/components/teacher/SegmentResultCard";
+import { saveSession } from "@/lib/sessionHistory";
+import { Save } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLE_LESSONS = [

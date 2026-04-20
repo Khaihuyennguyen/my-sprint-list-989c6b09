@@ -85,6 +85,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
     try {
       setError(null);
       setIsSilent(false);
+      setHasDetectedSound(false);
       peakRmsRef.current = 0;
       soundFramesRef.current = 0;
 

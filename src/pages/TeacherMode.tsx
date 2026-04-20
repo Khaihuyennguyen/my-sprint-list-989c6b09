@@ -152,6 +152,8 @@ export default function TeacherMode() {
     });
 
   const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [savedHistory, setSavedHistory] = useState(false);
   const waitingForBlob = useRef(false);
   const shadowStarted = useRef(false);
   const introducedFor = useRef<number | null>(null);

@@ -191,6 +191,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudi
           if (rms > silenceThreshold) {
             lastSoundAtRef.current = now;
             soundFramesRef.current += 1;
+            if (soundFramesRef.current === 1) setHasDetectedSound(true);
           }
 
           const elapsed = now - startTimeRef.current;

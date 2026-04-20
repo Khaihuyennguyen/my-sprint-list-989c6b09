@@ -455,9 +455,16 @@ export default function TeacherMode() {
                   onClick={() => handleSelectLesson(i)}
                   className="glass-card p-5 text-left hover:border-primary/40 transition-all group"
                 >
-                  <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {lesson.title}
-                  </h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
+                      {lesson.title}
+                    </h3>
+                    {lesson.category && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider shrink-0">
+                        {lesson.category}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {lesson.segments.length} sentences to practice
                   </p>

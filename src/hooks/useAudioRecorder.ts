@@ -19,6 +19,8 @@ interface UseAudioRecorderReturn {
   mimeType: string | null;
   /** True if the last recording appears to be silent / mic captured nothing meaningful. */
   isSilent: boolean;
+  /** True as soon as the mic detects audible sound during the current recording. Resets on start/reset. */
+  hasDetectedSound: boolean;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   resetRecording: () => void;

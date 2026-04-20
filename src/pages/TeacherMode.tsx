@@ -466,9 +466,26 @@ export default function TeacherMode() {
                   </p>
                 )}
                 {isRecording && (
-                  <p className="text-xs text-primary animate-pulse">
-                    🎙️ Recording... tap to stop and {currentSegmentIndex < segments.length - 1 ? "go to next" : "finish"}
-                  </p>
+                  <div className="flex flex-col items-center gap-2">
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        hasDetectedSound
+                          ? "bg-primary/10 border-primary/40 text-primary"
+                          : "bg-muted/40 border-muted text-muted-foreground"
+                      }`}
+                      aria-live="polite"
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          hasDetectedSound ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
+                        }`}
+                      />
+                      {hasDetectedSound ? "Mic detecting sound" : "Waiting for sound..."}
+                    </div>
+                    <p className="text-xs text-primary animate-pulse">
+                      🎙️ Recording... tap to stop and {currentSegmentIndex < segments.length - 1 ? "go to next" : "finish"}
+                    </p>
+                  </div>
                 )}
                 {error && <p className="text-xs text-destructive">{error}</p>}
               </div>

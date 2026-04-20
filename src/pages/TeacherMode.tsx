@@ -79,7 +79,7 @@ export default function TeacherMode() {
     reset,
   } = useTeacherSession();
 
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error, isSilent, mimeType } =
+  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording, duration, error, isSilent, mimeType, hasDetectedSound } =
     useAudioRecorder({
       silenceTimeoutMs: 12000,
       onSilenceStop: () => toast.info("Auto-stopped after silence"),

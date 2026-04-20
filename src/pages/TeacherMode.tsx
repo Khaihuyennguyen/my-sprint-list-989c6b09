@@ -17,16 +17,10 @@ import { useTeacherSession, type TeacherSegment } from "@/hooks/useTeacherSessio
 import { toast } from "sonner";
 
 const SAMPLE_LESSONS = [
+  // === Job interview practice ===
   {
-    title: "Business Meeting",
-    segments: [
-      { expectedText: "I'd like to schedule a meeting to discuss the quarterly results.", role: "You", index: 0 },
-      { expectedText: "Could you please share your screen so we can review the data together?", role: "You", index: 1 },
-      { expectedText: "Let me summarize the key takeaways from today's discussion.", role: "You", index: 2 },
-    ],
-  },
-  {
-    title: "Job Interview",
+    title: "Job Interview — Intro",
+    category: "Interview",
     segments: [
       { expectedText: "Thank you for the opportunity. I'm excited to discuss this role.", role: "You", index: 0 },
       { expectedText: "In my previous position, I led a team of twelve engineers.", role: "You", index: 1 },
@@ -34,15 +28,84 @@ const SAMPLE_LESSONS = [
     ],
   },
   {
-    title: "Daily Conversation",
+    title: "Job Interview — Behavioral",
+    category: "Interview",
     segments: [
-      { expectedText: "Good morning! How are you doing today?", role: "You", index: 0 },
-      { expectedText: "I've been meaning to ask you about the weather this weekend.", role: "You", index: 1 },
-      { expectedText: "Would you like to grab a coffee after work?", role: "You", index: 2 },
+      { expectedText: "Tell me about a time you handled a difficult stakeholder.", role: "You", index: 0 },
+      { expectedText: "I focused on listening first, then proposed a clear next step.", role: "You", index: 1 },
+      { expectedText: "The outcome was a stronger relationship and a delivered project.", role: "You", index: 2 },
     ],
   },
   {
-    title: "Technology Discussion",
+    title: "Job Interview — Salary & Closing",
+    category: "Interview",
+    segments: [
+      { expectedText: "Based on my research, my expected range is competitive with the market.", role: "You", index: 0 },
+      { expectedText: "I'm open to discussing the full compensation package, not just base salary.", role: "You", index: 1 },
+      { expectedText: "What are the next steps in your hiring process?", role: "You", index: 2 },
+    ],
+  },
+
+  // === Everyday English ===
+  {
+    title: "Everyday — Coffee Shop",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Hi, could I get a medium oat milk latte, please?", role: "You", index: 0 },
+      { expectedText: "Is it possible to make that decaf?", role: "You", index: 1 },
+      { expectedText: "Thanks so much, have a great day!", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Everyday — Asking Directions",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Excuse me, could you tell me how to get to the train station?", role: "You", index: 0 },
+      { expectedText: "Is it within walking distance, or should I take a taxi?", role: "You", index: 1 },
+      { expectedText: "Thank you, I really appreciate your help.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Everyday — Small Talk",
+    category: "Everyday",
+    segments: [
+      { expectedText: "Good morning! How are you doing today?", role: "You", index: 0 },
+      { expectedText: "Any plans for the weekend?", role: "You", index: 1 },
+      { expectedText: "Would you like to grab a coffee after work?", role: "You", index: 2 },
+    ],
+  },
+
+  // === Business meetings ===
+  {
+    title: "Business — Daily Standup",
+    category: "Business",
+    segments: [
+      { expectedText: "Yesterday I finished the API integration and ran the test suite.", role: "You", index: 0 },
+      { expectedText: "Today I'll focus on the dashboard refactor and code review.", role: "You", index: 1 },
+      { expectedText: "I'm blocked on the staging environment, could someone help unblock me?", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Business — Presenting Results",
+    category: "Business",
+    segments: [
+      { expectedText: "I'd like to walk you through this quarter's key results.", role: "You", index: 0 },
+      { expectedText: "Could you please share your screen so we can review the data together?", role: "You", index: 1 },
+      { expectedText: "Let me summarize the three main takeaways from today's discussion.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Business — Negotiating",
+    category: "Business",
+    segments: [
+      { expectedText: "I understand your position, but let me share another perspective.", role: "You", index: 0 },
+      { expectedText: "Would you be open to a compromise on the timeline?", role: "You", index: 1 },
+      { expectedText: "I think we can find a solution that works for both sides.", role: "You", index: 2 },
+    ],
+  },
+  {
+    title: "Tech — Architecture Review",
+    category: "Business",
     segments: [
       { expectedText: "Artificial intelligence is transforming the way we work and live.", role: "You", index: 0 },
       { expectedText: "The algorithm processes thousands of data points per second.", role: "You", index: 1 },
